@@ -1104,23 +1104,31 @@
             // Use filtered data for network analysis
             const dataToAnalyze = getFilteredData();
 
-            const uniqueProfiles = [...new Set(dataToAnalyze.map(item => item.profile).filter(p => p))];
+            // Extract base profile names (remove " - Post X" suffix)
+            const getBaseName = (profile) => {
+                if (!profile) return '';
+                const match = profile.match(/^(.+?)\s*-\s*Post\s+\d+$/i);
+                return match ? match[1].trim() : profile;
+            };
+
+            // Group interactors by base profile name (combining all posts from same person)
+            const profileInteractors = {};
+            dataToAnalyze.forEach(item => {
+                if (!item.profile) return;
+                const baseName = getBaseName(item.profile);
+                if (!profileInteractors[baseName]) {
+                    profileInteractors[baseName] = new Set();
+                }
+                profileInteractors[baseName].add(item.name.toLowerCase().trim());
+            });
+
+            const uniqueProfiles = Object.keys(profileInteractors);
 
             // Only show network analysis if there are 2+ profiles
             if (uniqueProfiles.length < 2) {
                 document.getElementById('networkSection').classList.remove('show');
                 return;
             }
-
-            // Group interactors by profile
-            const profileInteractors = {};
-            dataToAnalyze.forEach(item => {
-                if (!item.profile) return;
-                if (!profileInteractors[item.profile]) {
-                    profileInteractors[item.profile] = new Set();
-                }
-                profileInteractors[item.profile].add(item.name.toLowerCase().trim());
-            });
 
             // Calculate overlaps between all profile pairs
             const overlaps = [];
