@@ -451,8 +451,16 @@
                     console.log('Extracted URLs:', extractedUrls);
                     console.log('URL Map:', urlMap);
                     console.log('Raw text length:', rawTextWithUrls.length);
+                    console.log('First 500 characters of raw text:', rawTextWithUrls.substring(0, 500));
 
-                    document.getElementById('fileName').textContent = `✓ ${file.name} uploaded`;
+                    if (rawTextWithUrls.length === 0) {
+                        alert('No data found in column A of the Excel file. Please make sure you pasted the LinkedIn data into column A.');
+                        document.getElementById('fileName').textContent = 'No data in file';
+                        document.getElementById('fileInput').value = '';
+                        return;
+                    }
+
+                    document.getElementById('fileName').textContent = `✓ ${file.name} uploaded (${rawTextWithUrls.split('\n').filter(l => l.trim()).length} lines)`;
 
                     // Now parse the data with the extracted URLs
                     parseDataFromExcel(rawTextWithUrls, extractedUrls, urlMap);
@@ -478,15 +486,21 @@
             const lines = rawText.split('\n').map(line => line.trim()).filter(line => line);
             parsedData = [];
 
+            console.log('Total lines to parse:', lines.length);
+            console.log('First 10 lines:', lines.slice(0, 10));
+
             const reactions = ['like', 'love', 'insightful', 'celebrate', 'support', 'curious', 'funny'];
 
             let urlIndex = 0;
             let i = 0;
+            let reactionsFound = 0;
+
             while (i < lines.length) {
                 const line = lines[i].toLowerCase();
 
                 // Check if this line is a reaction type
                 if (reactions.includes(line)) {
+                    reactionsFound++;
                     const reaction = line;
                     i++;
 
@@ -528,8 +542,15 @@
                 }
             }
 
+            console.log('Reactions found:', reactionsFound);
+            console.log('Parsed data count:', parsedData.length);
+
             if (parsedData.length === 0) {
-                alert('No interactor data found in the Excel file. Please make sure the data is in column A.');
+                const sampleData = lines.slice(0, 20).join('\n');
+                alert('No interactor data found in the Excel file.\n\n' +
+                      'The parser is looking for reaction types (like, love, insightful, etc.) followed by names and headlines.\n\n' +
+                      'Please check the browser console (F12) to see what data was extracted from your Excel file.');
+                console.log('Sample of extracted data (first 20 lines):', sampleData);
             } else {
                 console.log('Parsed data:', parsedData);
                 displayResults();
