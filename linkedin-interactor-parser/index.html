@@ -495,77 +495,57 @@
             while (i < lines.length) {
                 const line = lines[i];
 
-                // Try multiple patterns to find a name
-                let name = null;
-                let matchedLine = line;
+                // Check if line contains "View" and "profile" - this indicates a profile line
+                if (line.toLowerCase().includes('view') && line.toLowerCase().includes('profile')) {
+                    // Split on "View" (case insensitive) to extract the name
+                    const viewIndex = line.toLowerCase().indexOf('view');
+                    const name = line.substring(0, viewIndex).trim();
 
-                // Pattern 1: "[Name]View [Name]'s profile"
-                let match = line.match(/^(.+?)View .+(?:'s|'s) profile/i);
-                if (match) {
-                    name = match[1].trim();
-                }
+                    if (name.length > 0) {
+                        console.log('Found name:', name, 'from line:', line);
 
-                // Pattern 2: Just a name with "View" in it (more flexible)
-                if (!name && line.includes('View') && line.includes('profile')) {
-                    const parts = line.split('View');
-                    if (parts[0]) {
-                        name = parts[0].trim();
-                    }
-                }
+                        // Check for hyperlink
+                        let profileUrl = urlMap[line] || '';
 
-                // Pattern 3: If line has more than 10 chars and contains capital letters (likely a name)
-                if (!name && line.length > 3 && line.length < 100 && /[A-Z]/.test(line)) {
-                    // Check if next line might be connection info
-                    if (i + 1 < lines.length) {
-                        const nextLine = lines[i + 1];
-                        if (nextLine.includes('degree') || nextLine.includes('·') || nextLine.match(/^\d+(st|nd|rd|th)$/)) {
-                            // This line is probably a name
-                            name = line.trim();
-                        }
-                    }
-                }
-
-                if (name) {
-                    // Found a profile entry!
-                    console.log('Found name:', name, 'from line:', line);
-
-                    // Check for hyperlink
-                    let profileUrl = urlMap[line] || '';
-
-                    i++;
-
-                    // Skip connection degree info lines and any "View X's profile" lines
-                    while (i < lines.length &&
-                           (lines[i].includes('degree connection') ||
-                            lines[i].includes('View') && lines[i].includes('profile') ||
-                            lines[i].startsWith('·') ||
-                            lines[i].match(/^\d+(st|nd|rd|th)$/))) {
                         i++;
-                    }
 
-                    // Next line should be the headline (if it exists and is substantial)
-                    let headline = '';
-                    if (i < lines.length) {
-                        const potentialHeadline = lines[i];
-                        // Make sure it's not another name line
-                        if (potentialHeadline.length > 5 && !potentialHeadline.includes('View') && !potentialHeadline.includes('profile')) {
-                            headline = potentialHeadline;
+                        // Skip connection degree info lines
+                        while (i < lines.length &&
+                               (lines[i].includes('degree connection') ||
+                                lines[i].toLowerCase().includes('view') ||
+                                lines[i].startsWith('·') ||
+                                lines[i].match(/^\d+(st|nd|rd|th)$/))) {
                             i++;
                         }
-                    }
 
-                    // If we didn't find URL in urlMap, try sequential
-                    if (!profileUrl && urlIndex < urls.length) {
-                        profileUrl = urls[urlIndex];
-                    }
-                    urlIndex++;
+                        // Next line should be the headline
+                        let headline = '';
+                        if (i < lines.length) {
+                            const potentialHeadline = lines[i];
+                            // Make sure it's substantial and not another profile line
+                            if (potentialHeadline.length > 5 &&
+                                !potentialHeadline.toLowerCase().includes('view') &&
+                                !potentialHeadline.toLowerCase().includes('profile')) {
+                                headline = potentialHeadline;
+                                i++;
+                            }
+                        }
 
-                    parsedData.push({
-                        reaction: '', // No reaction data in this format
-                        name: name,
-                        headline: headline,
-                        profileUrl: profileUrl
-                    });
+                        // If we didn't find URL in urlMap, try sequential
+                        if (!profileUrl && urlIndex < urls.length) {
+                            profileUrl = urls[urlIndex];
+                        }
+                        urlIndex++;
+
+                        parsedData.push({
+                            reaction: '', // No reaction data in this format
+                            name: name,
+                            headline: headline,
+                            profileUrl: profileUrl
+                        });
+                    } else {
+                        i++;
+                    }
                 } else {
                     i++;
                 }
