@@ -313,6 +313,33 @@
             font-weight: 600;
         }
 
+        .filter-section {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .filter-section label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .filter-section select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            background: white;
+            min-width: 200px;
+        }
+
+        .filter-section select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -359,8 +386,15 @@
                 <span class="count" id="countBadge">0 interactors</span>
             </div>
 
+            <div class="filter-section">
+                <label for="profileFilter">Filter by Profile:</label>
+                <select id="profileFilter" onchange="filterResults()">
+                    <option value="all">All Profiles</option>
+                </select>
+            </div>
+
             <div class="export-buttons">
-                <button class="export-btn" onclick="exportToCSV()">Export to CSV</button>
+                <button class="export-btn" onclick="exportToExcel()">Export to Excel</button>
                 <button class="export-btn" onclick="copyToClipboard()">Copy to Clipboard</button>
             </div>
 
@@ -383,6 +417,7 @@
 
     <script>
         let parsedData = [];
+        let currentFilter = 'all';
 
         // Check if XLSX library loaded successfully
         window.addEventListener('load', function() {
@@ -682,15 +717,50 @@
             const resultsSection = document.getElementById('resultsSection');
             const resultsBody = document.getElementById('resultsBody');
             const countBadge = document.getElementById('countBadge');
+            const profileFilter = document.getElementById('profileFilter');
 
             if (parsedData.length === 0) {
                 alert('No data could be parsed. Please check your input format.');
                 return;
             }
 
+            // Populate filter dropdown with unique profiles
+            const uniqueProfiles = [...new Set(parsedData.map(item => item.profile).filter(p => p))];
+            profileFilter.innerHTML = '<option value="all">All Profiles</option>';
+
+            if (uniqueProfiles.length > 0) {
+                uniqueProfiles.sort().forEach(profile => {
+                    const option = document.createElement('option');
+                    option.value = profile;
+                    option.textContent = profile;
+                    profileFilter.appendChild(option);
+                });
+            }
+
+            // Filter and display data
+            filterResults();
+
+            resultsSection.classList.add('show');
+
+            // Scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function filterResults() {
+            const resultsBody = document.getElementById('resultsBody');
+            const countBadge = document.getElementById('countBadge');
+            const profileFilter = document.getElementById('profileFilter');
+
+            currentFilter = profileFilter.value;
+
+            // Filter data based on selected profile
+            const filteredData = currentFilter === 'all'
+                ? parsedData
+                : parsedData.filter(item => item.profile === currentFilter);
+
             resultsBody.innerHTML = '';
 
-            parsedData.forEach((item, index) => {
+            filteredData.forEach((item, index) => {
                 const row = document.createElement('tr');
                 const urlCell = item.profileUrl
                     ? `<a href="${item.profileUrl}" target="_blank" rel="noopener noreferrer">${item.profileUrl}</a>`
@@ -713,43 +783,83 @@
                 resultsBody.appendChild(row);
             });
 
-            countBadge.textContent = `${parsedData.length} interactor${parsedData.length !== 1 ? 's' : ''}`;
-            resultsSection.classList.add('show');
-
-            // Scroll to results
-            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            const filterText = currentFilter === 'all' ? '' : ` (filtered: ${currentFilter})`;
+            countBadge.textContent = `${filteredData.length} interactor${filteredData.length !== 1 ? 's' : ''}${filterText}`;
         }
 
         function clearData() {
             document.getElementById('rawInput').value = '';
             document.getElementById('fileInput').value = '';
             document.getElementById('fileName').textContent = 'No file selected';
+            document.getElementById('profileFilter').value = 'all';
+            currentFilter = 'all';
             document.getElementById('resultsSection').classList.remove('show');
             parsedData = [];
         }
 
-        function exportToCSV() {
+        function exportToExcel() {
             if (parsedData.length === 0) {
                 alert('No data to export!');
                 return;
             }
 
-            let csv = 'Profile,Reaction,Name,Headline,Profile URL\n';
+            if (typeof XLSX === 'undefined') {
+                alert('Excel library not loaded. Cannot export to Excel.');
+                return;
+            }
+
+            // Group data by profile
+            const profileGroups = {};
             parsedData.forEach(item => {
-                const headline = item.headline.replace(/"/g, '""');
-                const profileUrl = item.profileUrl || '';
-                const reaction = item.reaction || '';
-                const profile = item.profile || '';
-                csv += `"${profile}","${reaction}","${item.name}","${headline}","${profileUrl}"\n`;
+                const profile = item.profile || 'Unknown';
+                if (!profileGroups[profile]) {
+                    profileGroups[profile] = [];
+                }
+                profileGroups[profile].push(item);
             });
 
-            const blob = new Blob([csv], { type: 'text/csv' });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `linkedin-interactors-${Date.now()}.csv`;
-            a.click();
-            window.URL.revokeObjectURL(url);
+            // Create a new workbook
+            const workbook = XLSX.utils.book_new();
+
+            // Create a sheet for each profile
+            Object.keys(profileGroups).sort().forEach(profile => {
+                const data = profileGroups[profile];
+
+                // Prepare data for the sheet
+                const sheetData = [
+                    ['Reaction', 'Name', 'Headline', 'Profile URL']
+                ];
+
+                data.forEach(item => {
+                    sheetData.push([
+                        item.reaction || '',
+                        item.name,
+                        item.headline,
+                        item.profileUrl || ''
+                    ]);
+                });
+
+                // Create worksheet
+                const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+                // Set column widths
+                worksheet['!cols'] = [
+                    { wch: 12 },  // Reaction
+                    { wch: 25 },  // Name
+                    { wch: 50 },  // Headline
+                    { wch: 40 }   // Profile URL
+                ];
+
+                // Sanitize sheet name (Excel has restrictions)
+                let sheetName = profile.substring(0, 31); // Max 31 chars
+                sheetName = sheetName.replace(/[:\\\/?*\[\]]/g, '_'); // Remove invalid chars
+
+                // Add worksheet to workbook
+                XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+            });
+
+            // Generate Excel file and trigger download
+            XLSX.writeFile(workbook, `linkedin-interactors-${Date.now()}.xlsx`);
         }
 
         function copyToClipboard() {
@@ -758,8 +868,18 @@
                 return;
             }
 
+            // Filter data based on current filter
+            const filteredData = currentFilter === 'all'
+                ? parsedData
+                : parsedData.filter(item => item.profile === currentFilter);
+
+            if (filteredData.length === 0) {
+                alert('No data to copy for the selected filter!');
+                return;
+            }
+
             let text = 'Profile\tReaction\tName\tHeadline\tProfile URL\n';
-            parsedData.forEach(item => {
+            filteredData.forEach(item => {
                 const profileUrl = item.profileUrl || '';
                 const reaction = item.reaction || '';
                 const profile = item.profile || '';
@@ -767,7 +887,8 @@
             });
 
             navigator.clipboard.writeText(text).then(() => {
-                alert('Data copied to clipboard!');
+                const filterMsg = currentFilter === 'all' ? '' : ` (${currentFilter} only)`;
+                alert(`Data copied to clipboard!${filterMsg}`);
             }).catch(err => {
                 alert('Failed to copy to clipboard');
             });
