@@ -422,26 +422,35 @@
                     const extractedUrls = [];
                     const urlMap = {}; // Map row numbers to URLs
 
-                    // Read each cell in the first column
-                    for (let row = range.s.r; row <= range.e.r; row++) {
+                    // Read the ENTIRE first column, including gaps
+                    // We'll read up to row 10000 to be safe, or the last row if less
+                    const maxRow = Math.min(range.e.r, 10000);
+
+                    for (let row = range.s.r; row <= maxRow; row++) {
                         const cellAddress = XLSX.utils.encode_cell({ r: row, c: column });
                         const cell = worksheet[cellAddress];
 
-                        if (cell) {
-                            // Get cell text value
-                            const cellValue = cell.v || '';
-                            rawTextWithUrls += cellValue + '\n';
+                        if (cell && cell.v) {
+                            // Get cell text value (only if not empty)
+                            const cellValue = String(cell.v).trim();
 
-                            // Check if cell has a hyperlink
-                            if (cell.l && cell.l.Target) {
-                                urlMap[cellValue] = cell.l.Target; // Map the cell text to its URL
-                                extractedUrls.push(cell.l.Target);
+                            if (cellValue) {
+                                rawTextWithUrls += cellValue + '\n';
+
+                                // Check if cell has a hyperlink
+                                if (cell.l && cell.l.Target) {
+                                    urlMap[cellValue] = cell.l.Target; // Map the cell text to its URL
+                                    extractedUrls.push(cell.l.Target);
+                                }
                             }
                         }
+                        // If cell is empty, we skip it but continue reading
                     }
 
+                    console.log('Total cells scanned:', maxRow - range.s.r + 1);
                     console.log('Extracted URLs:', extractedUrls);
                     console.log('URL Map:', urlMap);
+                    console.log('Raw text length:', rawTextWithUrls.length);
 
                     document.getElementById('fileName').textContent = `✓ ${file.name} uploaded`;
 
