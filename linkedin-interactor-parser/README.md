@@ -37,25 +37,32 @@ A simple web app to parse and organize LinkedIn post interactors data.
 **Multiple Profiles (Multi-Sheet):**
 1. Create an Excel file with multiple sheets
 2. Name each sheet after the profile you're analyzing (e.g., "John Doe", "Jane Smith")
-3. In each sheet, paste the LinkedIn interactors data in Column A
+3. In each sheet, paste the LinkedIn interactors data:
+   - **Column A**: Interactors from Post 1
+   - **Column B**: Interactors from Post 2 (optional)
+   - **Column C**: Interactors from Post 3 (optional)
+   - Each column = different post from that profile
 4. Upload the Excel file
-5. The results will show all interactors with a "Profile" column indicating which sheet/person they came from
-6. Export keeps all profiles organized in one file with the Profile column
+5. The results will show all interactors labeled by profile and post number
+6. Export keeps everything organized
 
-**Example Multi-Sheet Structure:**
+**Example Multi-Sheet & Multi-Column Structure:**
 ```
 Sheet 1: "John Doe"
-  - Antonio Grasso
-  - Illia Khamza
-  - ...
+  Column A (Post 1): Antonio Grasso, Illia Khamza, ...
+  Column B (Post 2): Chris Peters, Vicki Beech, ...
+  Column C (Post 3): Pavel Lebedev, ...
 
 Sheet 2: "Jane Smith"
-  - Chris Peters
-  - Vicki Beech
-  - ...
+  Column A (Post 1): Peter Alando, ...
+  Column B (Post 2): Tareque Rahman, ...
 ```
 
-Result: Combined table showing all interactors with their source profile clearly labeled.
+Result: Profiles labeled as:
+- "John Doe - Post 1", "John Doe - Post 2", "John Doe - Post 3"
+- "Jane Smith - Post 1", "Jane Smith - Post 2"
+
+This allows comparing engagement across multiple posts from the same person!
 
 ### Filtering and Analytics
 
@@ -126,6 +133,22 @@ Result: Combined table showing all interactors with their source profile clearly
 6. Export to CSV or copy to clipboard as needed
 
 **Note**: When pasting text directly, hyperlinks are lost. Use the Excel upload method to preserve LinkedIn profile URLs.
+
+## LinkedIn URL Format Note
+
+LinkedIn sometimes provides tracking URLs in this format:
+```
+https://www.linkedin.com/in/ACoAAAFOIEABvorcKWuzqc2UEq2NqEIdbrlgMNc/
+```
+
+The app attempts to detect these tracking URLs. However, **we cannot automatically convert them to vanity URLs** (like `https://www.linkedin.com/in/antgrasso/`) without making HTTP requests to LinkedIn.
+
+**To get clean vanity URLs:**
+1. Visit each person's LinkedIn profile directly
+2. Copy the URL from the browser address bar (this is the vanity URL)
+3. Or accept that tracking URLs will be stored (they still work, just longer)
+
+The app will preserve whatever URL format is in your Excel hyperlinks.
 
 ## Data Format
 
