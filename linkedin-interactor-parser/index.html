@@ -318,6 +318,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            flex-wrap: wrap;
         }
 
         .filter-section label {
@@ -338,6 +339,114 @@
         .filter-section select:focus {
             outline: none;
             border-color: #667eea;
+        }
+
+        .filter-section input[type="text"] {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            min-width: 300px;
+        }
+
+        .filter-section input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .filter-section input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .analyze-btn {
+            background: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .analyze-btn:hover {
+            background: #059669;
+        }
+
+        .analytics-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .analytics-section.show {
+            display: block;
+        }
+
+        .analytics-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .keyword-stat {
+            margin-bottom: 12px;
+        }
+
+        .keyword-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .keyword-name {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .keyword-count {
+            color: #666;
+        }
+
+        .keyword-bar {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .keyword-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+        }
+
+        .duplicate-badge {
+            background: #fbbf24;
+            color: #78350f;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .duplicate-profiles {
+            font-size: 12px;
+            color: #666;
+            font-style: italic;
+            margin-top: 2px;
         }
 
         .empty-state {
@@ -391,6 +500,22 @@
                 <select id="profileFilter" onchange="filterResults()">
                     <option value="all">All Profiles</option>
                 </select>
+
+                <div class="checkbox-group">
+                    <input type="checkbox" id="showDuplicates" onchange="filterResults()">
+                    <label for="showDuplicates">Show Duplicates Only</label>
+                </div>
+            </div>
+
+            <div class="filter-section">
+                <label for="keywordSearch">Keyword Analysis:</label>
+                <input type="text" id="keywordSearch" placeholder="Enter keywords separated by commas (e.g., CEO, Engineer, Marketing)">
+                <button class="analyze-btn" onclick="analyzeKeywords()">Analyze</button>
+            </div>
+
+            <div class="analytics-section" id="analyticsSection">
+                <h3>Keyword Analytics</h3>
+                <div id="keywordStats"></div>
             </div>
 
             <div class="export-buttons">
@@ -418,6 +543,8 @@
     <script>
         let parsedData = [];
         let currentFilter = 'all';
+        let duplicateMap = {}; // Track duplicates: name -> [profiles]
+        let currentKeywords = [];
 
         // Check if XLSX library loaded successfully
         window.addEventListener('load', function() {
@@ -713,6 +840,26 @@
             displayResults();
         }
 
+        function buildDuplicateMap() {
+            duplicateMap = {};
+
+            parsedData.forEach(item => {
+                const name = item.name.toLowerCase().trim();
+                if (!duplicateMap[name]) {
+                    duplicateMap[name] = {
+                        profiles: new Set(),
+                        items: []
+                    };
+                }
+                if (item.profile) {
+                    duplicateMap[name].profiles.add(item.profile);
+                }
+                duplicateMap[name].items.push(item);
+            });
+
+            console.log('Duplicate analysis:', duplicateMap);
+        }
+
         function displayResults() {
             const resultsSection = document.getElementById('resultsSection');
             const resultsBody = document.getElementById('resultsBody');
@@ -723,6 +870,9 @@
                 alert('No data could be parsed. Please check your input format.');
                 return;
             }
+
+            // Build duplicate map
+            buildDuplicateMap();
 
             // Populate filter dropdown with unique profiles
             const uniqueProfiles = [...new Set(parsedData.map(item => item.profile).filter(p => p))];
@@ -750,13 +900,32 @@
             const resultsBody = document.getElementById('resultsBody');
             const countBadge = document.getElementById('countBadge');
             const profileFilter = document.getElementById('profileFilter');
+            const showDuplicates = document.getElementById('showDuplicates').checked;
 
             currentFilter = profileFilter.value;
 
             // Filter data based on selected profile
-            const filteredData = currentFilter === 'all'
+            let filteredData = currentFilter === 'all'
                 ? parsedData
                 : parsedData.filter(item => item.profile === currentFilter);
+
+            // Filter for duplicates if checkbox is checked
+            if (showDuplicates) {
+                filteredData = filteredData.filter(item => {
+                    const name = item.name.toLowerCase().trim();
+                    return duplicateMap[name] && duplicateMap[name].profiles.size > 1;
+                });
+            }
+
+            // Filter by keywords if they exist
+            if (currentKeywords.length > 0) {
+                filteredData = filteredData.filter(item => {
+                    const headline = item.headline.toLowerCase();
+                    return currentKeywords.some(keyword =>
+                        headline.includes(keyword.toLowerCase())
+                    );
+                });
+            }
 
             resultsBody.innerHTML = '';
 
@@ -772,19 +941,99 @@
 
                 const profileCell = item.profile || '-';
 
+                // Check if this is a duplicate
+                const name = item.name.toLowerCase().trim();
+                const isDuplicate = duplicateMap[name] && duplicateMap[name].profiles.size > 1;
+                const duplicateCount = isDuplicate ? duplicateMap[name].profiles.size : 0;
+                const duplicateProfiles = isDuplicate ? Array.from(duplicateMap[name].profiles).join(', ') : '';
+
+                const nameCell = isDuplicate
+                    ? `${item.name}<span class="duplicate-badge">×${duplicateCount} profiles</span><div class="duplicate-profiles">Appears in: ${duplicateProfiles}</div>`
+                    : item.name;
+
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td>${profileCell}</td>
                     <td>${reactionCell}</td>
-                    <td class="name-cell">${item.name}</td>
+                    <td class="name-cell">${nameCell}</td>
                     <td class="headline-cell">${item.headline}</td>
                     <td class="url-cell">${urlCell}</td>
                 `;
                 resultsBody.appendChild(row);
             });
 
-            const filterText = currentFilter === 'all' ? '' : ` (filtered: ${currentFilter})`;
+            let filterText = '';
+            if (currentFilter !== 'all') filterText += ` (filtered: ${currentFilter})`;
+            if (showDuplicates) filterText += ' (duplicates only)';
+            if (currentKeywords.length > 0) filterText += ` (keywords: ${currentKeywords.join(', ')})`;
+
             countBadge.textContent = `${filteredData.length} interactor${filteredData.length !== 1 ? 's' : ''}${filterText}`;
+        }
+
+        function analyzeKeywords() {
+            const keywordInput = document.getElementById('keywordSearch').value.trim();
+
+            if (!keywordInput) {
+                alert('Please enter at least one keyword');
+                return;
+            }
+
+            if (parsedData.length === 0) {
+                alert('No data to analyze. Please upload data first.');
+                return;
+            }
+
+            // Parse keywords
+            currentKeywords = keywordInput.split(',').map(k => k.trim()).filter(k => k);
+
+            if (currentKeywords.length === 0) {
+                alert('Please enter valid keywords');
+                return;
+            }
+
+            // Count occurrences for each keyword
+            const keywordCounts = {};
+            const total = parsedData.length;
+
+            currentKeywords.forEach(keyword => {
+                const count = parsedData.filter(item =>
+                    item.headline.toLowerCase().includes(keyword.toLowerCase())
+                ).length;
+                keywordCounts[keyword] = {
+                    count: count,
+                    percentage: ((count / total) * 100).toFixed(1)
+                };
+            });
+
+            // Display analytics
+            const analyticsSection = document.getElementById('analyticsSection');
+            const keywordStats = document.getElementById('keywordStats');
+
+            let statsHTML = '';
+            const maxCount = Math.max(...Object.values(keywordCounts).map(k => k.count));
+
+            Object.keys(keywordCounts).forEach(keyword => {
+                const data = keywordCounts[keyword];
+                const barWidth = maxCount > 0 ? (data.count / maxCount) * 100 : 0;
+
+                statsHTML += `
+                    <div class="keyword-stat">
+                        <div class="keyword-label">
+                            <span class="keyword-name">${keyword}</span>
+                            <span class="keyword-count">${data.count} matches (${data.percentage}%)</span>
+                        </div>
+                        <div class="keyword-bar">
+                            <div class="keyword-bar-fill" style="width: ${barWidth}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            keywordStats.innerHTML = statsHTML;
+            analyticsSection.classList.add('show');
+
+            // Apply keyword filter
+            filterResults();
         }
 
         function clearData() {
@@ -792,7 +1041,12 @@
             document.getElementById('fileInput').value = '';
             document.getElementById('fileName').textContent = 'No file selected';
             document.getElementById('profileFilter').value = 'all';
+            document.getElementById('showDuplicates').checked = false;
+            document.getElementById('keywordSearch').value = '';
+            document.getElementById('analyticsSection').classList.remove('show');
             currentFilter = 'all';
+            currentKeywords = [];
+            duplicateMap = {};
             document.getElementById('resultsSection').classList.remove('show');
             parsedData = [];
         }
