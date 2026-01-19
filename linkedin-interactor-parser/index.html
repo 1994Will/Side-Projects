@@ -562,6 +562,46 @@
             letter-spacing: 0.5px;
         }
 
+        .network-visualization {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            min-height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .network-visualization svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .profile-circle {
+            transition: opacity 0.3s ease;
+            cursor: pointer;
+        }
+
+        .profile-circle:hover {
+            opacity: 0.8;
+        }
+
+        .profile-label {
+            font-size: 12px;
+            font-weight: 600;
+            fill: #333;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        .profile-count {
+            font-size: 10px;
+            fill: #666;
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -634,6 +674,7 @@
             <div class="network-section" id="networkSection">
                 <h3>Network Overlap Analysis</h3>
                 <div class="network-summary" id="networkSummary"></div>
+                <div class="network-visualization" id="networkVisualization"></div>
                 <div class="overlap-matrix" id="overlapMatrix"></div>
             </div>
 
@@ -1029,8 +1070,41 @@
             console.log('Duplicate analysis:', duplicateMap);
         }
 
+        function getFilteredData() {
+            const profileFilter = document.getElementById('profileFilter');
+            const showDuplicates = document.getElementById('showDuplicates').checked;
+
+            // Filter data based on selected profile
+            let filteredData = currentFilter === 'all'
+                ? parsedData
+                : parsedData.filter(item => item.profile === currentFilter);
+
+            // Filter for duplicates if checkbox is checked
+            if (showDuplicates) {
+                filteredData = filteredData.filter(item => {
+                    const name = item.name.toLowerCase().trim();
+                    return duplicateMap[name] && duplicateMap[name].profiles.size > 1;
+                });
+            }
+
+            // Filter by keywords if they exist
+            if (currentKeywords.length > 0) {
+                filteredData = filteredData.filter(item => {
+                    const headline = item.headline.toLowerCase();
+                    return currentKeywords.some(keyword =>
+                        headline.includes(keyword.toLowerCase())
+                    );
+                });
+            }
+
+            return filteredData;
+        }
+
         function analyzeNetworkOverlap() {
-            const uniqueProfiles = [...new Set(parsedData.map(item => item.profile).filter(p => p))];
+            // Use filtered data for network analysis
+            const dataToAnalyze = getFilteredData();
+
+            const uniqueProfiles = [...new Set(dataToAnalyze.map(item => item.profile).filter(p => p))];
 
             // Only show network analysis if there are 2+ profiles
             if (uniqueProfiles.length < 2) {
@@ -1040,7 +1114,7 @@
 
             // Group interactors by profile
             const profileInteractors = {};
-            parsedData.forEach(item => {
+            dataToAnalyze.forEach(item => {
                 if (!item.profile) return;
                 if (!profileInteractors[item.profile]) {
                     profileInteractors[item.profile] = new Set();
@@ -1086,10 +1160,167 @@
             overlaps.sort((a, b) => b.sharedCount - a.sharedCount);
 
             // Display network analysis
-            displayNetworkAnalysis(overlaps, uniqueProfiles.length, totalShared);
+            displayNetworkAnalysis(overlaps, uniqueProfiles.length, totalShared, profileInteractors, uniqueProfiles, dataToAnalyze);
         }
 
-        function displayNetworkAnalysis(overlaps, profileCount, totalShared) {
+        function createNetworkVisualization(profileInteractors, uniqueProfiles, overlaps) {
+            const container = document.getElementById('networkVisualization');
+
+            // Calculate dimensions
+            const width = 800;
+            const height = 500;
+            const centerX = width / 2;
+            const centerY = height / 2;
+
+            // Find min and max interactor counts for scaling
+            const counts = uniqueProfiles.map(p => profileInteractors[p].size);
+            const maxCount = Math.max(...counts);
+            const minCount = Math.min(...counts);
+
+            // Scale circles between 40 and 120 radius
+            const minRadius = 40;
+            const maxRadius = 120;
+
+            // Calculate radius helper function to avoid division by zero
+            const calculateRadius = (count) => {
+                if (maxCount === minCount) {
+                    return (minRadius + maxRadius) / 2; // Use average if all counts are the same
+                }
+                return minRadius + ((count - minCount) / (maxCount - minCount)) * (maxRadius - minRadius);
+            };
+
+            // Create color palette
+            const colors = ['#667eea', '#764ba2', '#f093fb', '#4facfe', '#43e97b', '#fa709a', '#fee140', '#30cfd0'];
+
+            // Calculate positions for circles
+            const positions = [];
+
+            if (uniqueProfiles.length === 2) {
+                // Two circles - position them with overlap based on shared connections
+                const overlap = overlaps.find(o =>
+                    (o.profile1 === uniqueProfiles[0] && o.profile2 === uniqueProfiles[1]) ||
+                    (o.profile1 === uniqueProfiles[1] && o.profile2 === uniqueProfiles[0])
+                );
+
+                const r1 = calculateRadius(profileInteractors[uniqueProfiles[0]].size);
+                const r2 = calculateRadius(profileInteractors[uniqueProfiles[1]].size);
+
+                // Calculate distance between centers based on overlap
+                let distance = r1 + r2; // Default: just touching
+                if (overlap) {
+                    const overlapPercent = parseFloat(overlap.overlapPercentage) / 100;
+                    // More overlap = closer together
+                    distance = (r1 + r2) * (1 - overlapPercent * 0.6);
+                }
+
+                positions.push({
+                    profile: uniqueProfiles[0],
+                    x: centerX - distance / 2,
+                    y: centerY,
+                    radius: r1,
+                    count: profileInteractors[uniqueProfiles[0]].size,
+                    color: colors[0]
+                });
+
+                positions.push({
+                    profile: uniqueProfiles[1],
+                    x: centerX + distance / 2,
+                    y: centerY,
+                    radius: r2,
+                    count: profileInteractors[uniqueProfiles[1]].size,
+                    color: colors[1]
+                });
+            } else {
+                // Multiple circles - arrange in a circle with force-directed adjustment
+                const arrangeRadius = Math.min(200, width / 3);
+
+                uniqueProfiles.forEach((profile, i) => {
+                    const angle = (i / uniqueProfiles.length) * 2 * Math.PI - Math.PI / 2;
+                    const radius = calculateRadius(profileInteractors[profile].size);
+
+                    positions.push({
+                        profile: profile,
+                        x: centerX + arrangeRadius * Math.cos(angle),
+                        y: centerY + arrangeRadius * Math.sin(angle),
+                        radius: radius,
+                        count: profileInteractors[profile].size,
+                        color: colors[i % colors.length]
+                    });
+                });
+
+                // Apply force-directed adjustment based on overlaps
+                for (let iteration = 0; iteration < 50; iteration++) {
+                    overlaps.forEach(overlap => {
+                        const pos1 = positions.find(p => p.profile === overlap.profile1);
+                        const pos2 = positions.find(p => p.profile === overlap.profile2);
+
+                        if (pos1 && pos2) {
+                            const dx = pos2.x - pos1.x;
+                            const dy = pos2.y - pos1.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+
+                            const overlapPercent = parseFloat(overlap.overlapPercentage) / 100;
+                            const targetDistance = (pos1.radius + pos2.radius) * (1 - overlapPercent * 0.5);
+
+                            if (distance > 0) {
+                                const force = (distance - targetDistance) * 0.1;
+                                const fx = (dx / distance) * force;
+                                const fy = (dy / distance) * force;
+
+                                pos1.x += fx;
+                                pos1.y += fy;
+                                pos2.x -= fx;
+                                pos2.y -= fy;
+                            }
+                        }
+                    });
+                }
+            }
+
+            // Create SVG
+            let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`;
+
+            // Draw circles
+            positions.forEach((pos, i) => {
+                svg += `
+                    <circle
+                        class="profile-circle"
+                        cx="${pos.x}"
+                        cy="${pos.y}"
+                        r="${pos.radius}"
+                        fill="${pos.color}"
+                        opacity="0.5"
+                        stroke="${pos.color}"
+                        stroke-width="2"
+                    />
+                `;
+            });
+
+            // Draw labels (on top of circles)
+            positions.forEach((pos, i) => {
+                // Split long profile names
+                const maxLength = 20;
+                let displayName = pos.profile;
+                if (displayName.length > maxLength) {
+                    displayName = displayName.substring(0, maxLength - 3) + '...';
+                }
+
+                svg += `
+                    <text class="profile-label" x="${pos.x}" y="${pos.y - 5}">
+                        ${displayName}
+                    </text>
+                    <text class="profile-count" x="${pos.x}" y="${pos.y + 10}">
+                        ${pos.count} interactors
+                    </text>
+                `;
+            });
+
+            svg += '</svg>';
+
+            container.innerHTML = svg;
+        }
+
+        function displayNetworkAnalysis(overlaps, profileCount, totalShared, profileInteractors, uniqueProfiles, dataToAnalyze) {
             const networkSection = document.getElementById('networkSection');
             const networkSummary = document.getElementById('networkSummary');
             const overlapMatrix = document.getElementById('overlapMatrix');
@@ -1099,9 +1330,9 @@
                 return;
             }
 
-            // Calculate total unique people across all profiles
+            // Calculate total unique people across all profiles (from filtered data)
             const allPeople = new Set();
-            parsedData.forEach(item => {
+            dataToAnalyze.forEach(item => {
                 if (item.profile) {
                     allPeople.add(item.name.toLowerCase().trim());
                 }
@@ -1128,13 +1359,16 @@
                 </div>
             `;
 
+            // Create network visualization
+            createNetworkVisualization(profileInteractors, uniqueProfiles, overlaps);
+
             // Display overlap pairs
             let overlapHTML = '';
             overlaps.forEach(overlap => {
                 const barWidth = (overlap.sharedCount / maxOverlap) * 100;
                 const sharedNamesList = overlap.sharedNames.slice(0, 5).map(name => {
                     // Find the original casing
-                    const original = parsedData.find(item =>
+                    const original = dataToAnalyze.find(item =>
                         item.name.toLowerCase().trim() === name
                     );
                     return original ? original.name : name;
@@ -1278,6 +1512,9 @@
             if (currentKeywords.length > 0) filterText += ` (keywords: ${currentKeywords.join(', ')})`;
 
             countBadge.textContent = `${filteredData.length} interactor${filteredData.length !== 1 ? 's' : ''}${filterText}`;
+
+            // Update network visualization based on filtered data
+            analyzeNetworkOverlap();
         }
 
         function analyzeKeywords() {
@@ -1347,8 +1584,9 @@
             keywordStats.innerHTML = statsHTML;
             analyticsSection.classList.add('show');
 
-            // Apply keyword filter
+            // Apply keyword filter and update network analysis
             filterResults();
+            analyzeNetworkOverlap();
         }
 
         function clearData() {
