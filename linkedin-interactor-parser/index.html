@@ -973,13 +973,16 @@
         function analyzeKeywords() {
             const keywordInput = document.getElementById('keywordSearch').value.trim();
 
-            if (!keywordInput) {
-                alert('Please enter at least one keyword');
+            if (parsedData.length === 0) {
+                alert('No data to analyze. Please upload data first.');
                 return;
             }
 
-            if (parsedData.length === 0) {
-                alert('No data to analyze. Please upload data first.');
+            // If input is empty, clear keywords and hide analytics
+            if (!keywordInput) {
+                currentKeywords = [];
+                document.getElementById('analyticsSection').classList.remove('show');
+                filterResults();
                 return;
             }
 
@@ -987,7 +990,9 @@
             currentKeywords = keywordInput.split(',').map(k => k.trim()).filter(k => k);
 
             if (currentKeywords.length === 0) {
-                alert('Please enter valid keywords');
+                // Empty keywords, clear filter
+                document.getElementById('analyticsSection').classList.remove('show');
+                filterResults();
                 return;
             }
 
