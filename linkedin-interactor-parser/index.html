@@ -602,6 +602,78 @@
             pointer-events: none;
         }
 
+        .overlap-region {
+            cursor: pointer;
+            opacity: 0.3;
+            transition: opacity 0.3s ease;
+        }
+
+        .overlap-region:hover {
+            opacity: 0.6;
+        }
+
+        .network-detail {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .network-detail.show {
+            display: block;
+        }
+
+        .network-detail h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .network-detail-close {
+            float: right;
+            background: #e0e0e0;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .network-detail-close:hover {
+            background: #d0d0d0;
+        }
+
+        .interactor-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .interactor-item {
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+            transition: background 0.2s ease;
+        }
+
+        .interactor-item:hover {
+            background: #f8f9fa;
+        }
+
+        .interactor-item:last-child {
+            border-bottom: none;
+        }
+
+        .interactor-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .interactor-headline {
+            font-size: 13px;
+            color: #666;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -675,6 +747,7 @@
                 <h3>Network Overlap Analysis</h3>
                 <div class="network-summary" id="networkSummary"></div>
                 <div class="network-visualization" id="networkVisualization"></div>
+                <div class="network-detail" id="networkDetail"></div>
                 <div class="overlap-matrix" id="overlapMatrix"></div>
             </div>
 
@@ -1171,7 +1244,96 @@
             displayNetworkAnalysis(overlaps, uniqueProfiles.length, totalShared, profileInteractors, uniqueProfiles, dataToAnalyze);
         }
 
-        function createNetworkVisualization(profileInteractors, uniqueProfiles, overlaps) {
+        function showNetworkDetail(title, interactors, dataToAnalyze) {
+            const detailSection = document.getElementById('networkDetail');
+
+            // Filter dataToAnalyze to only include the interactors we want
+            const filteredInteractors = dataToAnalyze.filter(item =>
+                interactors.has(item.name.toLowerCase().trim())
+            );
+
+            // Remove duplicates by name (keep first occurrence)
+            const seenNames = new Set();
+            const uniqueInteractors = filteredInteractors.filter(item => {
+                const key = item.name.toLowerCase().trim();
+                if (seenNames.has(key)) return false;
+                seenNames.add(key);
+                return true;
+            });
+
+            let html = `
+                <button class="network-detail-close" onclick="document.getElementById('networkDetail').classList.remove('show')">Close</button>
+                <h4>${title} (${uniqueInteractors.length} people)</h4>
+                <div class="interactor-list">
+            `;
+
+            uniqueInteractors.forEach(item => {
+                html += `
+                    <div class="interactor-item">
+                        <div class="interactor-name">${item.name}</div>
+                        <div class="interactor-headline">${item.headline}</div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            detailSection.innerHTML = html;
+            detailSection.classList.add('show');
+            detailSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function calculateCircleIntersection(x1, y1, r1, x2, y2, r2) {
+            // Calculate the distance between circle centers
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const d = Math.sqrt(dx * dx + dy * dy);
+
+            // Check if circles actually intersect
+            if (d > r1 + r2 || d < Math.abs(r1 - r2) || d === 0) {
+                return null; // No intersection or one circle contains the other
+            }
+
+            // Calculate intersection points
+            const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d);
+            const h = Math.sqrt(r1 * r1 - a * a);
+
+            const px = x1 + a * dx / d;
+            const py = y1 + a * dy / d;
+
+            const intersect1 = {
+                x: px + h * dy / d,
+                y: py - h * dx / d
+            };
+
+            const intersect2 = {
+                x: px - h * dy / d,
+                y: py + h * dx / d
+            };
+
+            return { intersect1, intersect2, d, a, r1, r2 };
+        }
+
+        function createOverlapPath(x1, y1, r1, x2, y2, r2) {
+            const intersection = calculateCircleIntersection(x1, y1, r1, x2, y2, r2);
+            if (!intersection) return null;
+
+            const { intersect1, intersect2 } = intersection;
+
+            // Create SVG path for the lens-shaped overlap region
+            // We'll use two arc commands to create the lens shape
+            const largeArc = 0; // Always use the smaller arc
+
+            const path = `
+                M ${intersect1.x} ${intersect1.y}
+                A ${r1} ${r1} 0 ${largeArc} 1 ${intersect2.x} ${intersect2.y}
+                A ${r2} ${r2} 0 ${largeArc} 1 ${intersect1.x} ${intersect1.y}
+                Z
+            `;
+
+            return path;
+        }
+
+        function createNetworkVisualization(profileInteractors, uniqueProfiles, overlaps, dataToAnalyze) {
             const container = document.getElementById('networkVisualization');
 
             // Calculate dimensions
@@ -1285,23 +1447,71 @@
                 }
             }
 
-            // Create SVG
-            let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`;
+            // Clear container
+            container.innerHTML = '';
+
+            // Create SVG element
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('width', width);
+            svg.setAttribute('height', height);
+            svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+
+            // Draw overlap regions first (so they appear behind circles)
+            overlaps.forEach(overlap => {
+                const pos1 = positions.find(p => p.profile === overlap.profile1);
+                const pos2 = positions.find(p => p.profile === overlap.profile2);
+
+                if (pos1 && pos2) {
+                    const pathData = createOverlapPath(pos1.x, pos1.y, pos1.radius, pos2.x, pos2.y, pos2.radius);
+
+                    if (pathData) {
+                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        path.setAttribute('d', pathData);
+                        path.setAttribute('class', 'overlap-region');
+                        path.setAttribute('fill', '#667eea');
+                        path.style.cursor = 'pointer';
+
+                        // Create a Set of shared interactor names
+                        const sharedSet = new Set(overlap.sharedNames);
+
+                        // Add click handler for overlap region
+                        path.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            showNetworkDetail(
+                                `Shared Audience: ${overlap.profile1} & ${overlap.profile2}`,
+                                sharedSet,
+                                dataToAnalyze
+                            );
+                        });
+
+                        svg.appendChild(path);
+                    }
+                }
+            });
 
             // Draw circles
             positions.forEach((pos, i) => {
-                svg += `
-                    <circle
-                        class="profile-circle"
-                        cx="${pos.x}"
-                        cy="${pos.y}"
-                        r="${pos.radius}"
-                        fill="${pos.color}"
-                        opacity="0.5"
-                        stroke="${pos.color}"
-                        stroke-width="2"
-                    />
-                `;
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', pos.x);
+                circle.setAttribute('cy', pos.y);
+                circle.setAttribute('r', pos.radius);
+                circle.setAttribute('fill', pos.color);
+                circle.setAttribute('opacity', '0.5');
+                circle.setAttribute('stroke', pos.color);
+                circle.setAttribute('stroke-width', '2');
+                circle.setAttribute('class', 'profile-circle');
+                circle.style.cursor = 'pointer';
+
+                // Add click handler for circle
+                circle.addEventListener('click', () => {
+                    showNetworkDetail(
+                        `${pos.profile}'s Audience`,
+                        profileInteractors[pos.profile],
+                        dataToAnalyze
+                    );
+                });
+
+                svg.appendChild(circle);
             });
 
             // Draw labels (on top of circles)
@@ -1313,19 +1523,22 @@
                     displayName = displayName.substring(0, maxLength - 3) + '...';
                 }
 
-                svg += `
-                    <text class="profile-label" x="${pos.x}" y="${pos.y - 5}">
-                        ${displayName}
-                    </text>
-                    <text class="profile-count" x="${pos.x}" y="${pos.y + 10}">
-                        ${pos.count} interactors
-                    </text>
-                `;
+                const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                label.setAttribute('x', pos.x);
+                label.setAttribute('y', pos.y - 5);
+                label.setAttribute('class', 'profile-label');
+                label.textContent = displayName;
+                svg.appendChild(label);
+
+                const count = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                count.setAttribute('x', pos.x);
+                count.setAttribute('y', pos.y + 10);
+                count.setAttribute('class', 'profile-count');
+                count.textContent = `${pos.count} interactors`;
+                svg.appendChild(count);
             });
 
-            svg += '</svg>';
-
-            container.innerHTML = svg;
+            container.appendChild(svg);
         }
 
         function displayNetworkAnalysis(overlaps, profileCount, totalShared, profileInteractors, uniqueProfiles, dataToAnalyze) {
@@ -1368,7 +1581,7 @@
             `;
 
             // Create network visualization
-            createNetworkVisualization(profileInteractors, uniqueProfiles, overlaps);
+            createNetworkVisualization(profileInteractors, uniqueProfiles, overlaps, dataToAnalyze);
 
             // Display overlap pairs
             let overlapHTML = '';
