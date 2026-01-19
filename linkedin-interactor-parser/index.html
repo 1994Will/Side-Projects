@@ -673,6 +673,40 @@
             }
         });
 
+        function cleanLinkedInUrl(url, cellValue) {
+            // Check if this is a LinkedIn tracking URL (contains ACoAAA pattern)
+            if (url.includes('/in/ACoAAA') || url.includes('/in/ACoAA')) {
+                // Try to extract username from the cell value if it looks like a LinkedIn vanity URL
+                // Pattern: If cellValue contains something like "antgrasso" or similar
+                const nameMatch = cellValue.match(/([a-zA-Z0-9\-]+)/);
+
+                if (nameMatch && nameMatch[1]) {
+                    const potentialUsername = nameMatch[1].toLowerCase();
+
+                    // Don't use common words as usernames
+                    const excludeWords = ['view', 'profile', 'connection', 'degree', '1st', '2nd', '3rd'];
+
+                    if (!excludeWords.includes(potentialUsername) && potentialUsername.length > 3) {
+                        console.log(`Attempting to clean tracking URL. Cell: "${cellValue}", Extracted: "${potentialUsername}"`);
+                        // Keep the original tracking URL but log the attempt
+                        // We can't reliably convert without following the redirect
+                    }
+                }
+            }
+
+            // Check if URL matches vanity pattern already
+            const vanityPattern = /https:\/\/(www\.)?linkedin\.com\/in\/([a-zA-Z0-9\-]+)\/?$/;
+            const match = url.match(vanityPattern);
+
+            if (match && match[2] && !match[2].includes('ACoAAA')) {
+                // Already a clean vanity URL
+                return url;
+            }
+
+            // Return original URL (we can't convert tracking URLs without making HTTP requests)
+            return url;
+        }
+
         function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -704,62 +738,78 @@
 
                         console.log(`Processing sheet: "${sheetName}"`);
 
-                        // Extract data with hyperlinks
+                        // Extract data with hyperlinks from ALL columns
                         const range = XLSX.utils.decode_range(worksheet['!ref']);
-                        const column = 0; // First column (A)
 
-                        let rawTextWithUrls = '';
-                        const extractedUrls = [];
-                        const urlMap = {}; // Map row numbers to URLs
+                        // Process each column as a separate post
+                        for (let col = range.s.c; col <= range.e.c; col++) {
+                            let rawTextWithUrls = '';
+                            const extractedUrls = [];
+                            const urlMap = {}; // Map row numbers to URLs
 
-                        // Read the ENTIRE first column, including gaps
-                        // No row limit - read all data in the Excel file
-                        const maxRow = range.e.r;
+                            // Read the ENTIRE column, including gaps
+                            const maxRow = range.e.r;
 
-                        for (let row = range.s.r; row <= maxRow; row++) {
-                            const cellAddress = XLSX.utils.encode_cell({ r: row, c: column });
-                            const cell = worksheet[cellAddress];
+                            for (let row = range.s.r; row <= maxRow; row++) {
+                                const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+                                const cell = worksheet[cellAddress];
 
-                            if (cell && cell.v) {
-                                // Get cell text value (only if not empty)
-                                const cellValue = String(cell.v).trim();
+                                if (cell && cell.v) {
+                                    // Get cell text value (only if not empty)
+                                    const cellValue = String(cell.v).trim();
 
-                                if (cellValue) {
-                                    rawTextWithUrls += cellValue + '\n';
+                                    if (cellValue) {
+                                        rawTextWithUrls += cellValue + '\n';
 
-                                    // Check if cell has a hyperlink
-                                    if (cell.l && cell.l.Target) {
-                                        urlMap[cellValue] = cell.l.Target; // Map the cell text to its URL
-                                        extractedUrls.push(cell.l.Target);
+                                        // Check if cell has a hyperlink
+                                        if (cell.l && cell.l.Target) {
+                                            let url = cell.l.Target;
+
+                                            // Try to clean LinkedIn tracking URLs
+                                            url = cleanLinkedInUrl(url, cellValue);
+
+                                            urlMap[cellValue] = url;
+                                            extractedUrls.push(url);
+                                        }
                                     }
                                 }
+                                // If cell is empty, we skip it but continue reading
                             }
-                            // If cell is empty, we skip it but continue reading
-                        }
 
-                        const lineCount = rawTextWithUrls.split('\n').filter(l => l.trim()).length;
-                        totalLines += lineCount;
+                            const lineCount = rawTextWithUrls.split('\n').filter(l => l.trim()).length;
 
-                        console.log(`Sheet "${sheetName}": ${lineCount} lines, ${extractedUrls.length} URLs`);
+                            // Only add if there's actual data
+                            if (rawTextWithUrls.length > 0 && lineCount > 3) {
+                                totalLines += lineCount;
 
-                        if (rawTextWithUrls.length > 0) {
-                            allSheetsData.push({
-                                sheetName: sheetName,
-                                rawText: rawTextWithUrls,
-                                urls: extractedUrls,
-                                urlMap: urlMap
-                            });
+                                // Create a descriptive profile name
+                                const columnLetter = String.fromCharCode(65 + col); // A, B, C, etc.
+                                const postNumber = col + 1;
+                                const profileName = `${sheetName} - Post ${postNumber}`;
+
+                                console.log(`  Column ${columnLetter}: ${lineCount} lines, ${extractedUrls.length} URLs`);
+
+                                allSheetsData.push({
+                                    sheetName: profileName,
+                                    rawText: rawTextWithUrls,
+                                    urls: extractedUrls,
+                                    urlMap: urlMap
+                                });
+                            }
                         }
                     }
 
                     if (allSheetsData.length === 0) {
-                        alert('No data found in any sheets of the Excel file. Please make sure you pasted the LinkedIn data into column A.');
+                        alert('No data found in any sheets of the Excel file. Please make sure you pasted the LinkedIn data into the columns.');
                         document.getElementById('fileName').textContent = 'No data in file';
                         document.getElementById('fileInput').value = '';
                         return;
                     }
 
-                    document.getElementById('fileName').textContent = `✓ ${file.name} uploaded (${allSheetsData.length} sheet(s), ${totalLines} lines)`;
+                    const uniqueSheets = [...new Set(allSheetsData.map(d => d.sheetName.split(' - ')[0]))].length;
+                    const postsCount = allSheetsData.length;
+
+                    document.getElementById('fileName').textContent = `✓ ${file.name} uploaded (${uniqueSheets} profile(s), ${postsCount} post(s), ${totalLines} lines)`;
 
                     // Now parse the data from all sheets
                     parseAllSheetsData(allSheetsData);
