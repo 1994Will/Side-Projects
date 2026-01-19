@@ -489,70 +489,65 @@
             console.log('Total lines to parse:', lines.length);
             console.log('First 10 lines:', lines.slice(0, 10));
 
-            const reactions = ['like', 'love', 'insightful', 'celebrate', 'support', 'curious', 'funny'];
-
             let urlIndex = 0;
             let i = 0;
-            let reactionsFound = 0;
 
             while (i < lines.length) {
-                const line = lines[i].toLowerCase();
+                const line = lines[i];
 
-                // Check if this line is a reaction type
-                if (reactions.includes(line)) {
-                    reactionsFound++;
-                    const reaction = line;
+                // Check if this line contains a name followed by "View [name]'s profile"
+                // Pattern: "[Name]View [Name]'s profile"
+                const viewProfileMatch = line.match(/^(.+?)View .+'s profile/);
+
+                if (viewProfileMatch) {
+                    // Extract the name (everything before "View")
+                    let name = viewProfileMatch[1].trim();
+
+                    // Also check if there's a hyperlink on this line in the urlMap
+                    let profileUrl = urlMap[line] || '';
+
                     i++;
 
-                    // Next non-empty line should be the name
-                    if (i < lines.length) {
-                        const name = lines[i];
-                        i++;
-
-                        // Skip "View [name]'s profile" line and connection info
-                        while (i < lines.length &&
-                               (lines[i].startsWith('View ') ||
-                                lines[i].includes('degree connection') ||
-                                lines[i].startsWith('·'))) {
-                            i++;
-                        }
-
-                        // Next line should be the headline
-                        const headline = i < lines.length ? lines[i] : '';
-
-                        // Try to get URL from the urlMap first (matches name to URL)
-                        // If not found, fall back to sequential URL list
-                        let profileUrl = urlMap ? urlMap[name] : '';
-                        if (!profileUrl && urlIndex < urls.length) {
-                            profileUrl = urls[urlIndex];
-                        }
-                        urlIndex++;
-
-                        parsedData.push({
-                            reaction: reaction,
-                            name: name,
-                            headline: headline,
-                            profileUrl: profileUrl
-                        });
-
+                    // Skip connection degree info lines
+                    while (i < lines.length &&
+                           (lines[i].includes('degree connection') ||
+                            lines[i].startsWith('·') ||
+                            lines[i].match(/^\d+(st|nd|rd|th)$/))) {
                         i++;
                     }
+
+                    // Next line should be the headline
+                    const headline = i < lines.length ? lines[i] : '';
+
+                    // If we didn't find URL in urlMap, try sequential
+                    if (!profileUrl && urlIndex < urls.length) {
+                        profileUrl = urls[urlIndex];
+                    }
+                    urlIndex++;
+
+                    parsedData.push({
+                        reaction: '', // No reaction data in this format
+                        name: name,
+                        headline: headline,
+                        profileUrl: profileUrl
+                    });
+
+                    i++;
                 } else {
                     i++;
                 }
             }
 
-            console.log('Reactions found:', reactionsFound);
-            console.log('Parsed data count:', parsedData.length);
+            console.log('Profiles found:', parsedData.length);
+            console.log('Parsed data:', parsedData);
 
             if (parsedData.length === 0) {
                 const sampleData = lines.slice(0, 20).join('\n');
                 alert('No interactor data found in the Excel file.\n\n' +
-                      'The parser is looking for reaction types (like, love, insightful, etc.) followed by names and headlines.\n\n' +
-                      'Please check the browser console (F12) to see what data was extracted from your Excel file.');
+                      'Looking for the pattern: [Name]View [Name]\'s profile\n\n' +
+                      'Please check the browser console (F12) to see what data was extracted.');
                 console.log('Sample of extracted data (first 20 lines):', sampleData);
             } else {
-                console.log('Parsed data:', parsedData);
                 displayResults();
             }
         }
@@ -639,9 +634,13 @@
                     ? `<a href="${item.profileUrl}" target="_blank" rel="noopener noreferrer">${item.profileUrl}</a>`
                     : '<span class="no-url">No URL</span>';
 
+                const reactionCell = item.reaction
+                    ? `<span class="reaction-badge reaction-${item.reaction}">${item.reaction}</span>`
+                    : '<span class="no-url">-</span>';
+
                 row.innerHTML = `
                     <td>${index + 1}</td>
-                    <td><span class="reaction-badge reaction-${item.reaction}">${item.reaction}</span></td>
+                    <td>${reactionCell}</td>
                     <td class="name-cell">${item.name}</td>
                     <td class="headline-cell">${item.headline}</td>
                     <td class="url-cell">${urlCell}</td>
@@ -674,7 +673,8 @@
             parsedData.forEach(item => {
                 const headline = item.headline.replace(/"/g, '""');
                 const profileUrl = item.profileUrl || '';
-                csv += `"${item.reaction}","${item.name}","${headline}","${profileUrl}"\n`;
+                const reaction = item.reaction || '';
+                csv += `"${reaction}","${item.name}","${headline}","${profileUrl}"\n`;
             });
 
             const blob = new Blob([csv], { type: 'text/csv' });
@@ -695,7 +695,8 @@
             let text = 'Reaction\tName\tHeadline\tProfile URL\n';
             parsedData.forEach(item => {
                 const profileUrl = item.profileUrl || '';
-                text += `${item.reaction}\t${item.name}\t${item.headline}\t${profileUrl}\n`;
+                const reaction = item.reaction || '';
+                text += `${reaction}\t${item.name}\t${item.headline}\t${profileUrl}\n`;
             });
 
             navigator.clipboard.writeText(text).then(() => {
