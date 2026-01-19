@@ -383,11 +383,26 @@
     <script>
         let parsedData = [];
 
+        // Check if XLSX library loaded successfully
+        window.addEventListener('load', function() {
+            if (typeof XLSX === 'undefined') {
+                console.error('SheetJS library failed to load');
+                document.getElementById('fileName').textContent = 'Excel library failed to load - text paste only';
+            }
+        });
+
         function handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
 
-            document.getElementById('fileName').textContent = file.name;
+            // Check if XLSX library is loaded
+            if (typeof XLSX === 'undefined') {
+                alert('Excel library is still loading. Please wait a moment and try again.');
+                document.getElementById('fileInput').value = '';
+                return;
+            }
+
+            document.getElementById('fileName').textContent = `Processing ${file.name}...`;
 
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -405,6 +420,7 @@
 
                     let rawTextWithUrls = '';
                     const extractedUrls = [];
+                    const urlMap = {}; // Map row numbers to URLs
 
                     // Read each cell in the first column
                     for (let row = range.s.r; row <= range.e.r; row++) {
@@ -418,24 +434,38 @@
 
                             // Check if cell has a hyperlink
                             if (cell.l && cell.l.Target) {
+                                urlMap[cellValue] = cell.l.Target; // Map the cell text to its URL
                                 extractedUrls.push(cell.l.Target);
                             }
                         }
                     }
 
+                    console.log('Extracted URLs:', extractedUrls);
+                    console.log('URL Map:', urlMap);
+
+                    document.getElementById('fileName').textContent = `✓ ${file.name} uploaded`;
+
                     // Now parse the data with the extracted URLs
-                    parseDataFromExcel(rawTextWithUrls, extractedUrls);
+                    parseDataFromExcel(rawTextWithUrls, extractedUrls, urlMap);
 
                 } catch (error) {
-                    alert('Error reading Excel file: ' + error.message);
+                    alert('Error reading Excel file: ' + error.message + '\n\nPlease make sure you uploaded a valid Excel file (.xlsx or .xls)');
                     console.error('Error:', error);
+                    document.getElementById('fileName').textContent = 'Error processing file';
+                    document.getElementById('fileInput').value = '';
                 }
+            };
+
+            reader.onerror = function() {
+                alert('Error reading file. Please try again.');
+                document.getElementById('fileName').textContent = 'Error reading file';
+                document.getElementById('fileInput').value = '';
             };
 
             reader.readAsArrayBuffer(file);
         }
 
-        function parseDataFromExcel(rawText, urls) {
+        function parseDataFromExcel(rawText, urls, urlMap) {
             const lines = rawText.split('\n').map(line => line.trim()).filter(line => line);
             parsedData = [];
 
@@ -467,8 +497,12 @@
                         // Next line should be the headline
                         const headline = i < lines.length ? lines[i] : '';
 
-                        // Get the corresponding URL from extracted URLs
-                        const profileUrl = urlIndex < urls.length ? urls[urlIndex] : '';
+                        // Try to get URL from the urlMap first (matches name to URL)
+                        // If not found, fall back to sequential URL list
+                        let profileUrl = urlMap ? urlMap[name] : '';
+                        if (!profileUrl && urlIndex < urls.length) {
+                            profileUrl = urls[urlIndex];
+                        }
                         urlIndex++;
 
                         parsedData.push({
@@ -485,7 +519,12 @@
                 }
             }
 
-            displayResults();
+            if (parsedData.length === 0) {
+                alert('No interactor data found in the Excel file. Please make sure the data is in column A.');
+            } else {
+                console.log('Parsed data:', parsedData);
+                displayResults();
+            }
         }
 
         function parseData() {
