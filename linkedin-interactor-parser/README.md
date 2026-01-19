@@ -5,12 +5,14 @@ A simple web app to parse and organize LinkedIn post interactors data.
 ## Features
 
 - **Excel File Upload**: Upload an Excel file with hyperlinked text to preserve LinkedIn profile URLs
+- **Multi-Sheet Support**: Analyze multiple profiles at once - each sheet represents a different person's interactors
+- **Profile Segmentation**: Keep interactors organized by which profile they interacted with
 - **Parse LinkedIn Data**: Copy and paste raw LinkedIn interactors text
 - **Extract Profile URLs**: Automatically detects and extracts LinkedIn profile URLs from Excel hyperlinks
-- **Organized Display**: View data in a clean table format with reactions, names, headlines, and profile URLs
+- **Organized Display**: View data in a clean table format with profile source, reactions, names, headlines, and profile URLs
 - **Clickable Links**: Profile URLs are clickable and open in a new tab
 - **Export Options**:
-  - Export to CSV file (includes URLs)
+  - Export to CSV file (includes all columns)
   - Copy to clipboard (tab-separated for easy pasting into Excel/Sheets)
 - **Beautiful UI**: Modern, responsive design
 
@@ -18,6 +20,7 @@ A simple web app to parse and organize LinkedIn post interactors data.
 
 ### Option 1: Upload Excel File (Recommended - Preserves Hyperlinks)
 
+**Single Profile:**
 1. Open `index.html` in any web browser
 2. Copy the interactors from a LinkedIn post into Excel (Column A)
    - Paste into a single column
@@ -26,6 +29,29 @@ A simple web app to parse and organize LinkedIn post interactors data.
 4. Click "Choose Excel File" and select your file
 5. The app will automatically parse and display the results with URLs intact
 6. Export to CSV or copy to clipboard as needed
+
+**Multiple Profiles (Multi-Sheet):**
+1. Create an Excel file with multiple sheets
+2. Name each sheet after the profile you're analyzing (e.g., "John Doe", "Jane Smith")
+3. In each sheet, paste the LinkedIn interactors data in Column A
+4. Upload the Excel file
+5. The results will show all interactors with a "Profile" column indicating which sheet/person they came from
+6. Export keeps all profiles organized in one file with the Profile column
+
+**Example Multi-Sheet Structure:**
+```
+Sheet 1: "John Doe"
+  - Antonio Grasso
+  - Illia Khamza
+  - ...
+
+Sheet 2: "Jane Smith"
+  - Chris Peters
+  - Vicki Beech
+  - ...
+```
+
+Result: Combined table showing all interactors with their source profile clearly labeled.
 
 ### Option 2: Paste Text Data
 
