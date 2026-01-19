@@ -7,6 +7,8 @@ A simple web app to parse and organize LinkedIn post interactors data.
 - **Excel File Upload**: Upload an Excel file with hyperlinked text to preserve LinkedIn profile URLs
 - **Multi-Sheet Support**: Analyze multiple profiles at once - each sheet represents a different person's interactors
 - **Profile Filtering**: Filter results by specific profile or view all at once with dropdown selector
+- **Duplicate Detection**: Find people who engage with multiple profiles - your biggest fans and influential connectors
+- **Keyword Analytics**: Search for job titles, industries, or skills and see visual analytics with counts and percentages
 - **Profile Segmentation**: Keep interactors organized by which profile they interacted with
 - **Parse LinkedIn Data**: Copy and paste raw LinkedIn interactors text
 - **Extract Profile URLs**: Automatically detects and extracts LinkedIn profile URLs from Excel hyperlinks
@@ -15,7 +17,7 @@ A simple web app to parse and organize LinkedIn post interactors data.
 - **Export Options**:
   - Export to Excel file with separate sheets for each profile
   - Copy to clipboard (tab-separated, respects current filter)
-- **Beautiful UI**: Modern, responsive design
+- **Beautiful UI**: Modern, responsive design with visual analytics
 
 ## How to Use
 
@@ -54,13 +56,37 @@ Sheet 2: "Jane Smith"
 
 Result: Combined table showing all interactors with their source profile clearly labeled.
 
-### Filtering and Exporting
+### Filtering and Analytics
 
 **Filter by Profile:**
 - Use the "Filter by Profile" dropdown at the top of results
 - Select a specific profile to view only their interactors
 - Select "All Profiles" to view everyone together
 - The count updates to show filtered results
+
+**Duplicate Detection:**
+- Check "Show Duplicates Only" to see people who appear across multiple profiles
+- Duplicates show a golden badge with "×N profiles"
+- See which profiles each person engaged with
+- Perfect for finding your most loyal connections and influential network nodes
+
+**Keyword Analytics:**
+- Enter keywords separated by commas (e.g., "CEO, Engineer, Marketing, AI")
+- Click "Analyze" to generate statistics
+- See count and percentage for each keyword with visual bar graphs
+- Table automatically filters to show only matching headlines
+- Use cases:
+  - Analyze audience composition by job title
+  - Find industry representation (Finance, Tech, Healthcare)
+  - Identify skill concentrations (AI, Design, Sales)
+  - Measure engagement from specific roles
+
+**Combined Filters:**
+- All filters work together
+- Example: "Show me duplicates who are CEOs" (check duplicates + search "CEO")
+- Status badge shows all active filters
+
+### Exporting
 
 **Export to Excel:**
 - Click "Export to Excel" button
