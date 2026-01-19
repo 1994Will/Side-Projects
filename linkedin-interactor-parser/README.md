@@ -6,14 +6,15 @@ A simple web app to parse and organize LinkedIn post interactors data.
 
 - **Excel File Upload**: Upload an Excel file with hyperlinked text to preserve LinkedIn profile URLs
 - **Multi-Sheet Support**: Analyze multiple profiles at once - each sheet represents a different person's interactors
+- **Profile Filtering**: Filter results by specific profile or view all at once with dropdown selector
 - **Profile Segmentation**: Keep interactors organized by which profile they interacted with
 - **Parse LinkedIn Data**: Copy and paste raw LinkedIn interactors text
 - **Extract Profile URLs**: Automatically detects and extracts LinkedIn profile URLs from Excel hyperlinks
 - **Organized Display**: View data in a clean table format with profile source, reactions, names, headlines, and profile URLs
 - **Clickable Links**: Profile URLs are clickable and open in a new tab
 - **Export Options**:
-  - Export to CSV file (includes all columns)
-  - Copy to clipboard (tab-separated for easy pasting into Excel/Sheets)
+  - Export to Excel file with separate sheets for each profile
+  - Copy to clipboard (tab-separated, respects current filter)
 - **Beautiful UI**: Modern, responsive design
 
 ## How to Use
@@ -52,6 +53,27 @@ Sheet 2: "Jane Smith"
 ```
 
 Result: Combined table showing all interactors with their source profile clearly labeled.
+
+### Filtering and Exporting
+
+**Filter by Profile:**
+- Use the "Filter by Profile" dropdown at the top of results
+- Select a specific profile to view only their interactors
+- Select "All Profiles" to view everyone together
+- The count updates to show filtered results
+
+**Export to Excel:**
+- Click "Export to Excel" button
+- Each profile is exported to a separate sheet
+- Sheet names match the profile names
+- All profiles are included regardless of current filter
+- File format: .xlsx (Excel)
+
+**Copy to Clipboard:**
+- Click "Copy to Clipboard" button
+- Copies data in tab-separated format
+- Respects current filter (only copies visible data)
+- Paste directly into Excel, Google Sheets, or other tools
 
 ### Option 2: Paste Text Data
 
