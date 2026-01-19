@@ -495,29 +495,64 @@
             while (i < lines.length) {
                 const line = lines[i];
 
-                // Check if this line contains a name followed by "View [name]'s profile"
-                // Pattern: "[Name]View [Name]'s profile"
-                const viewProfileMatch = line.match(/^(.+?)View .+'s profile/);
+                // Try multiple patterns to find a name
+                let name = null;
+                let matchedLine = line;
 
-                if (viewProfileMatch) {
-                    // Extract the name (everything before "View")
-                    let name = viewProfileMatch[1].trim();
+                // Pattern 1: "[Name]View [Name]'s profile"
+                let match = line.match(/^(.+?)View .+(?:'s|'s) profile/i);
+                if (match) {
+                    name = match[1].trim();
+                }
 
-                    // Also check if there's a hyperlink on this line in the urlMap
+                // Pattern 2: Just a name with "View" in it (more flexible)
+                if (!name && line.includes('View') && line.includes('profile')) {
+                    const parts = line.split('View');
+                    if (parts[0]) {
+                        name = parts[0].trim();
+                    }
+                }
+
+                // Pattern 3: If line has more than 10 chars and contains capital letters (likely a name)
+                if (!name && line.length > 3 && line.length < 100 && /[A-Z]/.test(line)) {
+                    // Check if next line might be connection info
+                    if (i + 1 < lines.length) {
+                        const nextLine = lines[i + 1];
+                        if (nextLine.includes('degree') || nextLine.includes('·') || nextLine.match(/^\d+(st|nd|rd|th)$/)) {
+                            // This line is probably a name
+                            name = line.trim();
+                        }
+                    }
+                }
+
+                if (name) {
+                    // Found a profile entry!
+                    console.log('Found name:', name, 'from line:', line);
+
+                    // Check for hyperlink
                     let profileUrl = urlMap[line] || '';
 
                     i++;
 
-                    // Skip connection degree info lines
+                    // Skip connection degree info lines and any "View X's profile" lines
                     while (i < lines.length &&
                            (lines[i].includes('degree connection') ||
+                            lines[i].includes('View') && lines[i].includes('profile') ||
                             lines[i].startsWith('·') ||
                             lines[i].match(/^\d+(st|nd|rd|th)$/))) {
                         i++;
                     }
 
-                    // Next line should be the headline
-                    const headline = i < lines.length ? lines[i] : '';
+                    // Next line should be the headline (if it exists and is substantial)
+                    let headline = '';
+                    if (i < lines.length) {
+                        const potentialHeadline = lines[i];
+                        // Make sure it's not another name line
+                        if (potentialHeadline.length > 5 && !potentialHeadline.includes('View') && !potentialHeadline.includes('profile')) {
+                            headline = potentialHeadline;
+                            i++;
+                        }
+                    }
 
                     // If we didn't find URL in urlMap, try sequential
                     if (!profileUrl && urlIndex < urls.length) {
@@ -531,8 +566,6 @@
                         headline: headline,
                         profileUrl: profileUrl
                     });
-
-                    i++;
                 } else {
                     i++;
                 }
@@ -542,11 +575,15 @@
             console.log('Parsed data:', parsedData);
 
             if (parsedData.length === 0) {
-                const sampleData = lines.slice(0, 20).join('\n');
+                const sampleData = lines.slice(0, 30).join('\n');
                 alert('No interactor data found in the Excel file.\n\n' +
-                      'Looking for the pattern: [Name]View [Name]\'s profile\n\n' +
-                      'Please check the browser console (F12) to see what data was extracted.');
-                console.log('Sample of extracted data (first 20 lines):', sampleData);
+                      'The parser tried multiple patterns but couldn\'t identify names.\n\n' +
+                      'First 30 lines have been logged to the browser console.\n\n' +
+                      'Please contact support with the console output.');
+                console.log('=== FULL DATA SAMPLE (first 30 lines) ===');
+                console.log(sampleData);
+                console.log('=== RAW DATA ===');
+                console.log(rawText.substring(0, 1000));
             } else {
                 displayResults();
             }
