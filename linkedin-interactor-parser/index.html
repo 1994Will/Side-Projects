@@ -368,6 +368,7 @@
                 <thead>
                     <tr>
                         <th>#</th>
+                        <th>Profile</th>
                         <th>Reaction</th>
                         <th>Name</th>
                         <th>Headline</th>
@@ -410,60 +411,77 @@
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array', cellHTML: false });
 
-                    // Get the first sheet
-                    const firstSheetName = workbook.SheetNames[0];
-                    const worksheet = workbook.Sheets[firstSheetName];
+                    console.log('Found', workbook.SheetNames.length, 'sheet(s):', workbook.SheetNames);
 
-                    // Extract data with hyperlinks
-                    const range = XLSX.utils.decode_range(worksheet['!ref']);
-                    const column = 0; // First column (A)
+                    // Process ALL sheets in the workbook
+                    const allSheetsData = [];
+                    let totalLines = 0;
 
-                    let rawTextWithUrls = '';
-                    const extractedUrls = [];
-                    const urlMap = {}; // Map row numbers to URLs
+                    for (let sheetIndex = 0; sheetIndex < workbook.SheetNames.length; sheetIndex++) {
+                        const sheetName = workbook.SheetNames[sheetIndex];
+                        const worksheet = workbook.Sheets[sheetName];
 
-                    // Read the ENTIRE first column, including gaps
-                    // No row limit - read all data in the Excel file
-                    const maxRow = range.e.r;
+                        console.log(`Processing sheet: "${sheetName}"`);
 
-                    for (let row = range.s.r; row <= maxRow; row++) {
-                        const cellAddress = XLSX.utils.encode_cell({ r: row, c: column });
-                        const cell = worksheet[cellAddress];
+                        // Extract data with hyperlinks
+                        const range = XLSX.utils.decode_range(worksheet['!ref']);
+                        const column = 0; // First column (A)
 
-                        if (cell && cell.v) {
-                            // Get cell text value (only if not empty)
-                            const cellValue = String(cell.v).trim();
+                        let rawTextWithUrls = '';
+                        const extractedUrls = [];
+                        const urlMap = {}; // Map row numbers to URLs
 
-                            if (cellValue) {
-                                rawTextWithUrls += cellValue + '\n';
+                        // Read the ENTIRE first column, including gaps
+                        // No row limit - read all data in the Excel file
+                        const maxRow = range.e.r;
 
-                                // Check if cell has a hyperlink
-                                if (cell.l && cell.l.Target) {
-                                    urlMap[cellValue] = cell.l.Target; // Map the cell text to its URL
-                                    extractedUrls.push(cell.l.Target);
+                        for (let row = range.s.r; row <= maxRow; row++) {
+                            const cellAddress = XLSX.utils.encode_cell({ r: row, c: column });
+                            const cell = worksheet[cellAddress];
+
+                            if (cell && cell.v) {
+                                // Get cell text value (only if not empty)
+                                const cellValue = String(cell.v).trim();
+
+                                if (cellValue) {
+                                    rawTextWithUrls += cellValue + '\n';
+
+                                    // Check if cell has a hyperlink
+                                    if (cell.l && cell.l.Target) {
+                                        urlMap[cellValue] = cell.l.Target; // Map the cell text to its URL
+                                        extractedUrls.push(cell.l.Target);
+                                    }
                                 }
                             }
+                            // If cell is empty, we skip it but continue reading
                         }
-                        // If cell is empty, we skip it but continue reading
+
+                        const lineCount = rawTextWithUrls.split('\n').filter(l => l.trim()).length;
+                        totalLines += lineCount;
+
+                        console.log(`Sheet "${sheetName}": ${lineCount} lines, ${extractedUrls.length} URLs`);
+
+                        if (rawTextWithUrls.length > 0) {
+                            allSheetsData.push({
+                                sheetName: sheetName,
+                                rawText: rawTextWithUrls,
+                                urls: extractedUrls,
+                                urlMap: urlMap
+                            });
+                        }
                     }
 
-                    console.log('Total cells scanned:', maxRow - range.s.r + 1);
-                    console.log('Extracted URLs:', extractedUrls);
-                    console.log('URL Map:', urlMap);
-                    console.log('Raw text length:', rawTextWithUrls.length);
-                    console.log('First 500 characters of raw text:', rawTextWithUrls.substring(0, 500));
-
-                    if (rawTextWithUrls.length === 0) {
-                        alert('No data found in column A of the Excel file. Please make sure you pasted the LinkedIn data into column A.');
+                    if (allSheetsData.length === 0) {
+                        alert('No data found in any sheets of the Excel file. Please make sure you pasted the LinkedIn data into column A.');
                         document.getElementById('fileName').textContent = 'No data in file';
                         document.getElementById('fileInput').value = '';
                         return;
                     }
 
-                    document.getElementById('fileName').textContent = `✓ ${file.name} uploaded (${rawTextWithUrls.split('\n').filter(l => l.trim()).length} lines)`;
+                    document.getElementById('fileName').textContent = `✓ ${file.name} uploaded (${allSheetsData.length} sheet(s), ${totalLines} lines)`;
 
-                    // Now parse the data with the extracted URLs
-                    parseDataFromExcel(rawTextWithUrls, extractedUrls, urlMap);
+                    // Now parse the data from all sheets
+                    parseAllSheetsData(allSheetsData);
 
                 } catch (error) {
                     alert('Error reading Excel file: ' + error.message + '\n\nPlease make sure you uploaded a valid Excel file (.xlsx or .xls)');
@@ -482,12 +500,35 @@
             reader.readAsArrayBuffer(file);
         }
 
-        function parseDataFromExcel(rawText, urls, urlMap) {
-            const lines = rawText.split('\n').map(line => line.trim()).filter(line => line);
+        function parseAllSheetsData(allSheetsData) {
             parsedData = [];
 
-            console.log('Total lines to parse:', lines.length);
-            console.log('First 10 lines:', lines.slice(0, 10));
+            // Process each sheet and add profile name to each entry
+            for (let sheet of allSheetsData) {
+                const sheetResults = parseDataFromExcel(sheet.rawText, sheet.urls, sheet.urlMap, sheet.sheetName);
+                parsedData = parsedData.concat(sheetResults);
+            }
+
+            console.log('Total profiles found across all sheets:', parsedData.length);
+            console.log('Parsed data:', parsedData);
+
+            if (parsedData.length === 0) {
+                alert('No interactor data found in any sheets. Please check the data format.');
+            } else {
+                displayResults();
+            }
+        }
+
+        function parseDataFromExcel(rawText, urls, urlMap, profileName = '') {
+            const lines = rawText.split('\n').map(line => line.trim()).filter(line => line);
+            const sheetParsedData = [];
+
+            console.log(`Parsing ${profileName ? 'sheet "' + profileName + '"' : 'data'}: ${lines.length} lines`);
+            if (lines.length <= 10) {
+                console.log('Lines:', lines);
+            } else {
+                console.log('First 10 lines:', lines.slice(0, 10));
+            }
 
             const reactions = ['like', 'love', 'insightful', 'celebrate', 'support', 'curious', 'funny'];
             let urlIndex = 0;
@@ -516,7 +557,7 @@
                         }
 
                         // Check for hyperlink
-                        let profileUrl = urlMap[line] || '';
+                        let interactorProfileUrl = urlMap[line] || '';
 
                         i++;
 
@@ -543,16 +584,17 @@
                         }
 
                         // If we didn't find URL in urlMap, try sequential
-                        if (!profileUrl && urlIndex < urls.length) {
-                            profileUrl = urls[urlIndex];
+                        if (!interactorProfileUrl && urlIndex < urls.length) {
+                            interactorProfileUrl = urls[urlIndex];
                         }
                         urlIndex++;
 
-                        parsedData.push({
+                        sheetParsedData.push({
+                            profile: profileName,
                             reaction: reaction,
                             name: name,
                             headline: headline,
-                            profileUrl: profileUrl
+                            profileUrl: interactorProfileUrl
                         });
                     } else {
                         i++;
@@ -562,22 +604,13 @@
                 }
             }
 
-            console.log('Profiles found:', parsedData.length);
-            console.log('Parsed data:', parsedData);
+            console.log(`Found ${sheetParsedData.length} interactors in ${profileName ? 'sheet "' + profileName + '"' : 'data'}`);
 
-            if (parsedData.length === 0) {
-                const sampleData = lines.slice(0, 30).join('\n');
-                alert('No interactor data found in the Excel file.\n\n' +
-                      'The parser tried multiple patterns but couldn\'t identify names.\n\n' +
-                      'First 30 lines have been logged to the browser console.\n\n' +
-                      'Please contact support with the console output.');
-                console.log('=== FULL DATA SAMPLE (first 30 lines) ===');
-                console.log(sampleData);
-                console.log('=== RAW DATA ===');
-                console.log(rawText.substring(0, 1000));
-            } else {
-                displayResults();
+            if (sheetParsedData.length === 0 && profileName) {
+                console.warn(`No interactor data found in sheet "${profileName}"`);
             }
+
+            return sheetParsedData;
         }
 
         function parseData() {
@@ -628,6 +661,7 @@
                         urlIndex++;
 
                         parsedData.push({
+                            profile: '',
                             reaction: reaction,
                             name: name,
                             headline: headline,
@@ -666,8 +700,11 @@
                     ? `<span class="reaction-badge reaction-${item.reaction}">${item.reaction}</span>`
                     : '<span class="no-url">-</span>';
 
+                const profileCell = item.profile || '-';
+
                 row.innerHTML = `
                     <td>${index + 1}</td>
+                    <td>${profileCell}</td>
                     <td>${reactionCell}</td>
                     <td class="name-cell">${item.name}</td>
                     <td class="headline-cell">${item.headline}</td>
@@ -697,12 +734,13 @@
                 return;
             }
 
-            let csv = 'Reaction,Name,Headline,Profile URL\n';
+            let csv = 'Profile,Reaction,Name,Headline,Profile URL\n';
             parsedData.forEach(item => {
                 const headline = item.headline.replace(/"/g, '""');
                 const profileUrl = item.profileUrl || '';
                 const reaction = item.reaction || '';
-                csv += `"${reaction}","${item.name}","${headline}","${profileUrl}"\n`;
+                const profile = item.profile || '';
+                csv += `"${profile}","${reaction}","${item.name}","${headline}","${profileUrl}"\n`;
             });
 
             const blob = new Blob([csv], { type: 'text/csv' });
@@ -720,11 +758,12 @@
                 return;
             }
 
-            let text = 'Reaction\tName\tHeadline\tProfile URL\n';
+            let text = 'Profile\tReaction\tName\tHeadline\tProfile URL\n';
             parsedData.forEach(item => {
                 const profileUrl = item.profileUrl || '';
                 const reaction = item.reaction || '';
-                text += `${reaction}\t${item.name}\t${item.headline}\t${profileUrl}\n`;
+                const profile = item.profile || '';
+                text += `${profile}\t${reaction}\t${item.name}\t${item.headline}\t${profileUrl}\n`;
             });
 
             navigator.clipboard.writeText(text).then(() => {
