@@ -423,8 +423,8 @@
                     const urlMap = {}; // Map row numbers to URLs
 
                     // Read the ENTIRE first column, including gaps
-                    // We'll read up to row 10000 to be safe, or the last row if less
-                    const maxRow = Math.min(range.e.r, 10000);
+                    // No row limit - read all data in the Excel file
+                    const maxRow = range.e.r;
 
                     for (let row = range.s.r; row <= maxRow; row++) {
                         const cellAddress = XLSX.utils.encode_cell({ r: row, c: column });
