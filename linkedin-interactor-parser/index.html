@@ -879,8 +879,24 @@
                                         if (cell.l && cell.l.Target) {
                                             let url = cell.l.Target;
 
-                                            // Try to clean LinkedIn tracking URLs
-                                            url = cleanLinkedInUrl(url, cellValue);
+                                            // Debug: Log all hyperlink properties (first few cells only)
+                                            if (extractedUrls.length < 3) {
+                                                console.log('Hyperlink data for cell:', cellValue);
+                                                console.log('  Target:', cell.l.Target);
+                                                console.log('  Tooltip:', cell.l.Tooltip);
+                                                console.log('  All properties:', cell.l);
+                                            }
+
+                                            // Check if tooltip contains a vanity URL
+                                            if (cell.l.Tooltip && cell.l.Tooltip.includes('linkedin.com/in/') &&
+                                                !cell.l.Tooltip.includes('ACoAAA')) {
+                                                // Use tooltip if it has a vanity URL
+                                                url = cell.l.Tooltip;
+                                                console.log('✓ Using vanity URL from Tooltip:', url);
+                                            } else {
+                                                // Try to clean LinkedIn tracking URLs
+                                                url = cleanLinkedInUrl(url, cellValue);
+                                            }
 
                                             urlMap[cellValue] = url;
                                             extractedUrls.push(url);
