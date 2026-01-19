@@ -449,6 +449,119 @@
             margin-top: 2px;
         }
 
+        .network-section {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .network-section.show {
+            display: block;
+        }
+
+        .network-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 18px;
+        }
+
+        .overlap-matrix {
+            display: grid;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .overlap-pair {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .overlap-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .overlap-profiles {
+            font-weight: 600;
+            color: #333;
+            font-size: 15px;
+        }
+
+        .overlap-count {
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .overlap-bar-container {
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .overlap-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+        }
+
+        .overlap-percentage {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .shared-names {
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .shared-names-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .network-summary {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 2px solid #667eea;
+        }
+
+        .network-stat {
+            display: inline-block;
+            margin-right: 20px;
+            margin-bottom: 10px;
+        }
+
+        .network-stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .network-stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -516,6 +629,12 @@
             <div class="analytics-section" id="analyticsSection">
                 <h3>Keyword Analytics</h3>
                 <div id="keywordStats"></div>
+            </div>
+
+            <div class="network-section" id="networkSection">
+                <h3>Network Overlap Analysis</h3>
+                <div class="network-summary" id="networkSummary"></div>
+                <div class="overlap-matrix" id="overlapMatrix"></div>
             </div>
 
             <div class="export-buttons">
@@ -860,6 +979,144 @@
             console.log('Duplicate analysis:', duplicateMap);
         }
 
+        function analyzeNetworkOverlap() {
+            const uniqueProfiles = [...new Set(parsedData.map(item => item.profile).filter(p => p))];
+
+            // Only show network analysis if there are 2+ profiles
+            if (uniqueProfiles.length < 2) {
+                document.getElementById('networkSection').classList.remove('show');
+                return;
+            }
+
+            // Group interactors by profile
+            const profileInteractors = {};
+            parsedData.forEach(item => {
+                if (!item.profile) return;
+                if (!profileInteractors[item.profile]) {
+                    profileInteractors[item.profile] = new Set();
+                }
+                profileInteractors[item.profile].add(item.name.toLowerCase().trim());
+            });
+
+            // Calculate overlaps between all profile pairs
+            const overlaps = [];
+            let totalShared = 0;
+
+            for (let i = 0; i < uniqueProfiles.length; i++) {
+                for (let j = i + 1; j < uniqueProfiles.length; j++) {
+                    const profile1 = uniqueProfiles[i];
+                    const profile2 = uniqueProfiles[j];
+
+                    const set1 = profileInteractors[profile1];
+                    const set2 = profileInteractors[profile2];
+
+                    // Find intersection
+                    const shared = [...set1].filter(name => set2.has(name));
+
+                    if (shared.length > 0) {
+                        const totalUnique = new Set([...set1, ...set2]).size;
+                        const overlapPercentage = ((shared.length / totalUnique) * 100).toFixed(1);
+
+                        overlaps.push({
+                            profile1,
+                            profile2,
+                            sharedCount: shared.length,
+                            sharedNames: shared,
+                            total1: set1.size,
+                            total2: set2.size,
+                            overlapPercentage: overlapPercentage
+                        });
+
+                        totalShared += shared.length;
+                    }
+                }
+            }
+
+            // Sort by shared count descending
+            overlaps.sort((a, b) => b.sharedCount - a.sharedCount);
+
+            // Display network analysis
+            displayNetworkAnalysis(overlaps, uniqueProfiles.length, totalShared);
+        }
+
+        function displayNetworkAnalysis(overlaps, profileCount, totalShared) {
+            const networkSection = document.getElementById('networkSection');
+            const networkSummary = document.getElementById('networkSummary');
+            const overlapMatrix = document.getElementById('overlapMatrix');
+
+            if (overlaps.length === 0) {
+                networkSection.classList.remove('show');
+                return;
+            }
+
+            // Calculate total unique people across all profiles
+            const allPeople = new Set();
+            parsedData.forEach(item => {
+                if (item.profile) {
+                    allPeople.add(item.name.toLowerCase().trim());
+                }
+            });
+
+            // Display summary stats
+            const maxOverlap = overlaps[0].sharedCount;
+            networkSummary.innerHTML = `
+                <div class="network-stat">
+                    <div class="network-stat-value">${profileCount}</div>
+                    <div class="network-stat-label">Profiles Analyzed</div>
+                </div>
+                <div class="network-stat">
+                    <div class="network-stat-value">${overlaps.length}</div>
+                    <div class="network-stat-label">Profile Pairs</div>
+                </div>
+                <div class="network-stat">
+                    <div class="network-stat-value">${allPeople.size}</div>
+                    <div class="network-stat-label">Unique People</div>
+                </div>
+                <div class="network-stat">
+                    <div class="network-stat-value">${maxOverlap}</div>
+                    <div class="network-stat-label">Largest Overlap</div>
+                </div>
+            `;
+
+            // Display overlap pairs
+            let overlapHTML = '';
+            overlaps.forEach(overlap => {
+                const barWidth = (overlap.sharedCount / maxOverlap) * 100;
+                const sharedNamesList = overlap.sharedNames.slice(0, 5).map(name => {
+                    // Find the original casing
+                    const original = parsedData.find(item =>
+                        item.name.toLowerCase().trim() === name
+                    );
+                    return original ? original.name : name;
+                }).join(', ');
+
+                const moreCount = overlap.sharedNames.length > 5 ? ` + ${overlap.sharedNames.length - 5} more` : '';
+
+                overlapHTML += `
+                    <div class="overlap-pair">
+                        <div class="overlap-header">
+                            <span class="overlap-profiles">${overlap.profile1} ↔ ${overlap.profile2}</span>
+                            <span class="overlap-count">${overlap.sharedCount} shared</span>
+                        </div>
+                        <div class="overlap-bar-container">
+                            <div class="overlap-bar-fill" style="width: ${barWidth}%"></div>
+                        </div>
+                        <div class="overlap-percentage">
+                            ${overlap.overlapPercentage}% network overlap
+                            (${overlap.total1} vs ${overlap.total2} interactors)
+                        </div>
+                        <div class="shared-names">
+                            <div class="shared-names-label">Shared connections:</div>
+                            ${sharedNamesList}${moreCount}
+                        </div>
+                    </div>
+                `;
+            });
+
+            overlapMatrix.innerHTML = overlapHTML;
+            networkSection.classList.add('show');
+        }
+
         function displayResults() {
             const resultsSection = document.getElementById('resultsSection');
             const resultsBody = document.getElementById('resultsBody');
@@ -873,6 +1130,9 @@
 
             // Build duplicate map
             buildDuplicateMap();
+
+            // Analyze network overlap
+            analyzeNetworkOverlap();
 
             // Populate filter dropdown with unique profiles
             const uniqueProfiles = [...new Set(parsedData.map(item => item.profile).filter(p => p))];
@@ -1049,6 +1309,7 @@
             document.getElementById('showDuplicates').checked = false;
             document.getElementById('keywordSearch').value = '';
             document.getElementById('analyticsSection').classList.remove('show');
+            document.getElementById('networkSection').classList.remove('show');
             currentFilter = 'all';
             currentKeywords = [];
             duplicateMap = {};
