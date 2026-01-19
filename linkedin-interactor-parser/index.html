@@ -248,6 +248,71 @@
             font-style: italic;
         }
 
+        .file-upload-section {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            text-align: center;
+            background: #f8f9ff;
+        }
+
+        .file-upload-section h3 {
+            margin-bottom: 10px;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .file-upload-section input[type="file"] {
+            display: none;
+        }
+
+        .file-upload-btn {
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-block;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload-btn:hover {
+            background: #5568d3;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .divider {
+            text-align: center;
+            margin: 20px 0;
+            position: relative;
+        }
+
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #e0e0e0;
+        }
+
+        .divider span {
+            background: white;
+            padding: 0 15px;
+            position: relative;
+            color: #999;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -261,15 +326,26 @@
             opacity: 0.3;
         }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h1>LinkedIn Interactors Parser</h1>
-            <p>Paste your LinkedIn interactors data and organize it instantly</p>
+            <p>Upload an Excel file or paste your LinkedIn interactors data</p>
         </div>
 
         <div class="input-section">
+            <div class="file-upload-section">
+                <h3>Option 1: Upload Excel File (Preserves Hyperlinks)</h3>
+                <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+                <label for="fileInput" class="file-upload-btn">Choose Excel File</label>
+                <div class="file-name" id="fileName">No file selected</div>
+            </div>
+
+            <div class="divider"><span>OR</span></div>
+
+            <h3 style="margin-bottom: 10px; color: #333; font-size: 16px;">Option 2: Paste Text Data</h3>
             <textarea id="rawInput" placeholder="Paste your LinkedIn interactors data here..."></textarea>
             <div class="button-group">
                 <button class="parse-btn" onclick="parseData()">Parse Data</button>
@@ -306,6 +382,111 @@
 
     <script>
         let parsedData = [];
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            document.getElementById('fileName').textContent = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellHTML: false });
+
+                    // Get the first sheet
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+
+                    // Extract data with hyperlinks
+                    const range = XLSX.utils.decode_range(worksheet['!ref']);
+                    const column = 0; // First column (A)
+
+                    let rawTextWithUrls = '';
+                    const extractedUrls = [];
+
+                    // Read each cell in the first column
+                    for (let row = range.s.r; row <= range.e.r; row++) {
+                        const cellAddress = XLSX.utils.encode_cell({ r: row, c: column });
+                        const cell = worksheet[cellAddress];
+
+                        if (cell) {
+                            // Get cell text value
+                            const cellValue = cell.v || '';
+                            rawTextWithUrls += cellValue + '\n';
+
+                            // Check if cell has a hyperlink
+                            if (cell.l && cell.l.Target) {
+                                extractedUrls.push(cell.l.Target);
+                            }
+                        }
+                    }
+
+                    // Now parse the data with the extracted URLs
+                    parseDataFromExcel(rawTextWithUrls, extractedUrls);
+
+                } catch (error) {
+                    alert('Error reading Excel file: ' + error.message);
+                    console.error('Error:', error);
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function parseDataFromExcel(rawText, urls) {
+            const lines = rawText.split('\n').map(line => line.trim()).filter(line => line);
+            parsedData = [];
+
+            const reactions = ['like', 'love', 'insightful', 'celebrate', 'support', 'curious', 'funny'];
+
+            let urlIndex = 0;
+            let i = 0;
+            while (i < lines.length) {
+                const line = lines[i].toLowerCase();
+
+                // Check if this line is a reaction type
+                if (reactions.includes(line)) {
+                    const reaction = line;
+                    i++;
+
+                    // Next non-empty line should be the name
+                    if (i < lines.length) {
+                        const name = lines[i];
+                        i++;
+
+                        // Skip "View [name]'s profile" line and connection info
+                        while (i < lines.length &&
+                               (lines[i].startsWith('View ') ||
+                                lines[i].includes('degree connection') ||
+                                lines[i].startsWith('·'))) {
+                            i++;
+                        }
+
+                        // Next line should be the headline
+                        const headline = i < lines.length ? lines[i] : '';
+
+                        // Get the corresponding URL from extracted URLs
+                        const profileUrl = urlIndex < urls.length ? urls[urlIndex] : '';
+                        urlIndex++;
+
+                        parsedData.push({
+                            reaction: reaction,
+                            name: name,
+                            headline: headline,
+                            profileUrl: profileUrl
+                        });
+
+                        i++;
+                    }
+                } else {
+                    i++;
+                }
+            }
+
+            displayResults();
+        }
 
         function parseData() {
             const rawText = document.getElementById('rawInput').value.trim();
@@ -408,6 +589,8 @@
 
         function clearData() {
             document.getElementById('rawInput').value = '';
+            document.getElementById('fileInput').value = '';
+            document.getElementById('fileName').textContent = 'No file selected';
             document.getElementById('resultsSection').classList.remove('show');
             parsedData = [];
         }
