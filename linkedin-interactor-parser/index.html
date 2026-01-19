@@ -226,6 +226,28 @@
             font-size: 14px;
         }
 
+        .url-cell {
+            font-size: 12px;
+            max-width: 250px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .url-cell a {
+            color: #0a66c2;
+            text-decoration: none;
+        }
+
+        .url-cell a:hover {
+            text-decoration: underline;
+        }
+
+        .no-url {
+            color: #ccc;
+            font-style: italic;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -273,6 +295,7 @@
                         <th>Reaction</th>
                         <th>Name</th>
                         <th>Headline</th>
+                        <th>Profile URL</th>
                     </tr>
                 </thead>
                 <tbody id="resultsBody">
@@ -292,11 +315,16 @@
                 return;
             }
 
+            // Extract all LinkedIn profile URLs from the raw text
+            const urlRegex = /https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9\-]+\/?/gi;
+            const urls = rawText.match(urlRegex) || [];
+
             const lines = rawText.split('\n').map(line => line.trim()).filter(line => line);
             parsedData = [];
 
             const reactions = ['like', 'love', 'insightful', 'celebrate', 'support', 'curious', 'funny'];
 
+            let urlIndex = 0;
             let i = 0;
             while (i < lines.length) {
                 const line = lines[i].toLowerCase();
@@ -322,10 +350,15 @@
                         // Next line should be the headline
                         const headline = i < lines.length ? lines[i] : '';
 
+                        // Try to get the corresponding URL
+                        const profileUrl = urlIndex < urls.length ? urls[urlIndex] : '';
+                        urlIndex++;
+
                         parsedData.push({
                             reaction: reaction,
                             name: name,
-                            headline: headline
+                            headline: headline,
+                            profileUrl: profileUrl
                         });
 
                         i++;
@@ -352,11 +385,16 @@
 
             parsedData.forEach((item, index) => {
                 const row = document.createElement('tr');
+                const urlCell = item.profileUrl
+                    ? `<a href="${item.profileUrl}" target="_blank" rel="noopener noreferrer">${item.profileUrl}</a>`
+                    : '<span class="no-url">No URL</span>';
+
                 row.innerHTML = `
                     <td>${index + 1}</td>
                     <td><span class="reaction-badge reaction-${item.reaction}">${item.reaction}</span></td>
                     <td class="name-cell">${item.name}</td>
                     <td class="headline-cell">${item.headline}</td>
+                    <td class="url-cell">${urlCell}</td>
                 `;
                 resultsBody.appendChild(row);
             });
@@ -380,10 +418,11 @@
                 return;
             }
 
-            let csv = 'Reaction,Name,Headline\n';
+            let csv = 'Reaction,Name,Headline,Profile URL\n';
             parsedData.forEach(item => {
                 const headline = item.headline.replace(/"/g, '""');
-                csv += `"${item.reaction}","${item.name}","${headline}"\n`;
+                const profileUrl = item.profileUrl || '';
+                csv += `"${item.reaction}","${item.name}","${headline}","${profileUrl}"\n`;
             });
 
             const blob = new Blob([csv], { type: 'text/csv' });
@@ -401,9 +440,10 @@
                 return;
             }
 
-            let text = 'Reaction\tName\tHeadline\n';
+            let text = 'Reaction\tName\tHeadline\tProfile URL\n';
             parsedData.forEach(item => {
-                text += `${item.reaction}\t${item.name}\t${item.headline}\n`;
+                const profileUrl = item.profileUrl || '';
+                text += `${item.reaction}\t${item.name}\t${item.headline}\t${profileUrl}\n`;
             });
 
             navigator.clipboard.writeText(text).then(() => {

@@ -5,9 +5,11 @@ A simple web app to parse and organize LinkedIn post interactors data.
 ## Features
 
 - **Parse LinkedIn Data**: Copy and paste raw LinkedIn interactors text
-- **Organized Display**: View data in a clean table format with reactions, names, and headlines
+- **Extract Profile URLs**: Automatically detects and extracts LinkedIn profile URLs
+- **Organized Display**: View data in a clean table format with reactions, names, headlines, and profile URLs
+- **Clickable Links**: Profile URLs are clickable and open in a new tab
 - **Export Options**:
-  - Export to CSV file
+  - Export to CSV file (includes URLs)
   - Copy to clipboard (tab-separated for easy pasting into Excel/Sheets)
 - **Beautiful UI**: Modern, responsive design
 
