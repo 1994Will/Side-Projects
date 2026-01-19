@@ -6,6 +6,7 @@ A simple web app to parse and organize LinkedIn post interactors data.
 
 - **Excel File Upload**: Upload an Excel file with hyperlinked text to preserve LinkedIn profile URLs
 - **Multi-Sheet Support**: Analyze multiple profiles at once - each sheet represents a different person's interactors
+- **Network Overlap Analysis**: Visual network analysis showing which profiles share common interactors
 - **Profile Filtering**: Filter results by specific profile or view all at once with dropdown selector
 - **Duplicate Detection**: Find people who engage with multiple profiles - your biggest fans and influential connectors
 - **Keyword Analytics**: Search for job titles, industries, or skills and see visual analytics with counts and percentages
@@ -69,6 +70,20 @@ Result: Combined table showing all interactors with their source profile clearly
 - Duplicates show a golden badge with "×N profiles"
 - See which profiles each person engaged with
 - Perfect for finding your most loyal connections and influential network nodes
+
+**Network Overlap Analysis:**
+- Automatically appears when analyzing 2+ profiles
+- Shows summary stats: profiles analyzed, profile pairs, unique people, largest overlap
+- Visual overlap matrix for each profile pair:
+  - Shared connection count with progress bars
+  - Overlap percentage (shared / total unique)
+  - Lists first 5 shared names (e.g., "John Smith, Jane Doe, Bob Wilson + 12 more")
+- Sorted by overlap size (largest first)
+- Use cases:
+  - Find strongest network connections between people
+  - Identify shared audience or community
+  - Discover influential connections who engage with multiple profiles
+  - Understand network clustering patterns
 
 **Keyword Analytics:**
 - Enter keywords separated by commas (e.g., "CEO, Engineer, Marketing, AI")
