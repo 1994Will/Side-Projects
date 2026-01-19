@@ -489,6 +489,7 @@
             console.log('Total lines to parse:', lines.length);
             console.log('First 10 lines:', lines.slice(0, 10));
 
+            const reactions = ['like', 'love', 'insightful', 'celebrate', 'support', 'curious', 'funny'];
             let urlIndex = 0;
             let i = 0;
 
@@ -503,6 +504,16 @@
 
                     if (name.length > 0) {
                         console.log('Found name:', name, 'from line:', line);
+
+                        // Check if there was a reaction on the previous line
+                        let reaction = '';
+                        if (i > 0) {
+                            const prevLine = lines[i - 1].toLowerCase().trim();
+                            if (reactions.includes(prevLine)) {
+                                reaction = prevLine;
+                                console.log('Found reaction:', reaction, 'for', name);
+                            }
+                        }
 
                         // Check for hyperlink
                         let profileUrl = urlMap[line] || '';
@@ -538,7 +549,7 @@
                         urlIndex++;
 
                         parsedData.push({
-                            reaction: '', // No reaction data in this format
+                            reaction: reaction,
                             name: name,
                             headline: headline,
                             profileUrl: profileUrl
