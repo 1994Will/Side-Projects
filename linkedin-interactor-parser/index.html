@@ -1853,30 +1853,52 @@
                 return;
             }
 
-            // Group data by profile
-            const profileGroups = {};
+            // Helper function to extract base person name (remove " - Post X")
+            const getBaseName = (profile) => {
+                if (!profile) return 'Unknown';
+                const match = profile.match(/^(.+?)\s*-\s*Post\s+\d+$/i);
+                return match ? match[1].trim() : profile;
+            };
+
+            // Helper function to extract post number
+            const getPostNumber = (profile) => {
+                if (!profile) return '';
+                const match = profile.match(/Post\s+(\d+)$/i);
+                return match ? `Post ${match[1]}` : '';
+            };
+
+            // Group data by base person name (combining all posts)
+            const personGroups = {};
             parsedData.forEach(item => {
-                const profile = item.profile || 'Unknown';
-                if (!profileGroups[profile]) {
-                    profileGroups[profile] = [];
+                const baseName = getBaseName(item.profile);
+                const postNumber = getPostNumber(item.profile);
+
+                if (!personGroups[baseName]) {
+                    personGroups[baseName] = [];
                 }
-                profileGroups[profile].push(item);
+
+                // Add post number to the item
+                personGroups[baseName].push({
+                    ...item,
+                    postNumber: postNumber
+                });
             });
 
             // Create a new workbook
             const workbook = XLSX.utils.book_new();
 
-            // Create a sheet for each profile
-            Object.keys(profileGroups).sort().forEach(profile => {
-                const data = profileGroups[profile];
+            // Create a sheet for each person (combining all their posts)
+            Object.keys(personGroups).sort().forEach(personName => {
+                const data = personGroups[personName];
 
-                // Prepare data for the sheet
+                // Prepare data for the sheet with Post column
                 const sheetData = [
-                    ['Reaction', 'Name', 'Headline', 'Profile URL']
+                    ['Post', 'Reaction', 'Name', 'Headline', 'Profile URL']
                 ];
 
                 data.forEach(item => {
                     sheetData.push([
+                        item.postNumber || '',
                         item.reaction || '',
                         item.name,
                         item.headline,
@@ -1889,6 +1911,7 @@
 
                 // Set column widths
                 worksheet['!cols'] = [
+                    { wch: 10 },  // Post
                     { wch: 12 },  // Reaction
                     { wch: 25 },  // Name
                     { wch: 50 },  // Headline
@@ -1896,7 +1919,7 @@
                 ];
 
                 // Sanitize sheet name (Excel has restrictions)
-                let sheetName = profile.substring(0, 31); // Max 31 chars
+                let sheetName = personName.substring(0, 31); // Max 31 chars
                 sheetName = sheetName.replace(/[:\\\/?*\[\]]/g, '_'); // Remove invalid chars
 
                 // Add worksheet to workbook
