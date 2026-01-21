@@ -1860,28 +1860,16 @@
                 return match ? match[1].trim() : profile;
             };
 
-            // Helper function to extract post number
-            const getPostNumber = (profile) => {
-                if (!profile) return '';
-                const match = profile.match(/Post\s+(\d+)$/i);
-                return match ? `Post ${match[1]}` : '';
-            };
-
             // Group data by base person name (combining all posts)
             const personGroups = {};
             parsedData.forEach(item => {
                 const baseName = getBaseName(item.profile);
-                const postNumber = getPostNumber(item.profile);
 
                 if (!personGroups[baseName]) {
                     personGroups[baseName] = [];
                 }
 
-                // Add post number to the item
-                personGroups[baseName].push({
-                    ...item,
-                    postNumber: postNumber
-                });
+                personGroups[baseName].push(item);
             });
 
             // Create a new workbook
@@ -1891,14 +1879,13 @@
             Object.keys(personGroups).sort().forEach(personName => {
                 const data = personGroups[personName];
 
-                // Prepare data for the sheet with Post column
+                // Prepare data for the sheet
                 const sheetData = [
-                    ['Post', 'Reaction', 'Name', 'Headline', 'Profile URL']
+                    ['Reaction', 'Name', 'Headline', 'Profile URL']
                 ];
 
                 data.forEach(item => {
                     sheetData.push([
-                        item.postNumber || '',
                         item.reaction || '',
                         item.name,
                         item.headline,
@@ -1911,7 +1898,6 @@
 
                 // Set column widths
                 worksheet['!cols'] = [
-                    { wch: 10 },  // Post
                     { wch: 12 },  // Reaction
                     { wch: 25 },  // Name
                     { wch: 50 },  // Headline
